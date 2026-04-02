@@ -38,6 +38,70 @@ begin
 end;
 $$;
 
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  full_name text,
+  email citext,
+  phone text,
+  avatar_url text,
+  role public.user_role not null default 'customer',
+  loyalty_tier text not null default 'Classic',
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create or replace function public.handle_new_user_profile()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.profiles (
+    id,
+    full_name,
+    email,
+    avatar_url,
+    role,
+    created_at,
+    updated_at
+  )
+  values (
+    new.id,
+    coalesce(new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'name'),
+    new.email,
+    new.raw_user_meta_data->>'avatar_url',
+    'customer',
+    timezone('utc', now()),
+    timezone('utc', now())
+  )
+  on conflict (id) do update
+    set email = excluded.email,
+        full_name = coalesce(public.profiles.full_name, excluded.full_name),
+        avatar_url = coalesce(public.profiles.avatar_url, excluded.avatar_url),
+        updated_at = timezone('utc', now());
+
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created_create_profile on auth.users;
+create trigger on_auth_user_created_create_profile
+after insert on auth.users
+for each row execute function public.handle_new_user_profile();
+
+insert into public.profiles (id, full_name, email, avatar_url, role, created_at, updated_at)
+select
+  u.id,
+  coalesce(u.raw_user_meta_data->>'full_name', u.raw_user_meta_data->>'name'),
+  u.email,
+  u.raw_user_meta_data->>'avatar_url',
+  'customer'::public.user_role,
+  timezone('utc', now()),
+  timezone('utc', now())
+from auth.users u
+on conflict (id) do nothing;
+
 create or replace function public.is_admin()
 returns boolean
 language sql
@@ -52,18 +116,6 @@ as $$
       and profile.role = 'admin'
   );
 $$;
-
-create table if not exists public.profiles (
-  id uuid primary key references auth.users(id) on delete cascade,
-  full_name text,
-  email citext,
-  phone text,
-  avatar_url text,
-  role public.user_role not null default 'customer',
-  loyalty_tier text not null default 'Classic',
-  created_at timestamptz not null default timezone('utc', now()),
-  updated_at timestamptz not null default timezone('utc', now())
-);
 
 create table if not exists public.categories (
   id uuid primary key default gen_random_uuid(),

@@ -30,6 +30,7 @@ This project now includes:
 4. Configure environment variables in `.env.local` (and Vercel):
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `NEXT_PUBLIC_SITE_URL`
    - `SUPABASE_SERVICE_ROLE_KEY`
 5. Create a storage bucket manually if you want media uploads (recommended name: `product-assets`).
 6. Mark admin users manually:
@@ -43,3 +44,8 @@ This project now includes:
 2. Visit `/shop` and `/product/sunlit-garden-eau-de-parfum`.
 3. Confirm `/admin` redirects non-admin users away and allows admins.
 4. Check Supabase logs for RLS policy denials and adjust only if intended.
+
+## Environment Notes
+
+- Keep real secrets in `.env.local` (local) and Vercel env settings (production).
+- Keep `.env.example` as a safe template only (no real anon/service keys).
