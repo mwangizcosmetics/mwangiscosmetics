@@ -24,15 +24,21 @@ export function MobileBottomNav() {
             <li key={item.href}>
               <Link
                 href={item.href}
+                aria-current={active ? "page" : undefined}
                 className={cn(
-                  "relative flex flex-col items-center justify-center gap-1 py-2 text-[11px] font-medium transition",
-                  active ? "text-[var(--brand-900)]" : "text-[var(--foreground-muted)]",
+                  "relative mx-1 my-1 flex flex-col items-center justify-center gap-0.5 rounded-xl py-1.5 text-[10px] font-semibold transition",
+                  active
+                    ? "bg-[var(--brand-50)] text-[var(--brand-900)]"
+                    : "text-[var(--foreground-muted)]",
                 )}
               >
-                <Icon className="size-4" />
+                {active ? (
+                  <span className="absolute inset-x-3 top-0 h-0.5 rounded-full bg-[var(--brand-700)]" />
+                ) : null}
+                <Icon className="size-[18px]" />
                 <span>{item.label}</span>
                 {count > 0 ? (
-                  <span className="absolute right-[26%] top-1.5 inline-flex min-w-4 items-center justify-center rounded-full bg-[var(--brand-900)] px-1 text-[10px] text-white">
+                  <span className="absolute right-[18%] top-1 inline-flex min-w-4 items-center justify-center rounded-full bg-[var(--brand-900)] px-1 text-[10px] text-white">
                     {count}
                   </span>
                 ) : null}

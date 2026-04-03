@@ -3,13 +3,12 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowRight, Sparkles } from "lucide-react";
+import { useMemo } from "react";
 
 import { Button } from "@/components/ui/button";
-import { SearchInput } from "@/components/shared/search-input";
 import { SiteContainer } from "@/components/shared/site-container";
 import { useCommerceStore } from "@/lib/stores/commerce-store";
 import { getActiveBanners } from "@/lib/services/commerce-selectors";
-import { useMemo } from "react";
 
 export function HomeHero() {
   const banners = useCommerceStore((state) => state.banners);
@@ -23,7 +22,7 @@ export function HomeHero() {
 
   return (
     <section className="relative overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(55%_45%_at_100%_0%,rgba(166,127,110,0.16),transparent_70%),radial-gradient(45%_35%_at_0%_30%,rgba(233,214,202,0.6),transparent_70%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(55%_45%_at_100%_0%,rgba(255,77,157,0.2),transparent_70%),radial-gradient(45%_35%_at_0%_30%,rgba(255,227,239,0.78),transparent_70%)]" />
       <SiteContainer className="relative py-8 sm:py-12">
         <motion.div
           initial={{ opacity: 0, y: 18 }}
@@ -50,11 +49,7 @@ export function HomeHero() {
                     <ArrowRight className="size-4" />
                   </Link>
                 </Button>
-                <Button asChild variant="outline" size="lg" className="rounded-full">
-                  <Link href="/shop">Build Your Routine</Link>
-                </Button>
               </div>
-              <SearchInput className="max-w-xl" />
             </div>
             <div className="relative min-h-64 overflow-hidden rounded-[1.6rem] bg-[var(--brand-100)] sm:min-h-80">
               <motion.img

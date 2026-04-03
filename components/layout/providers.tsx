@@ -11,6 +11,9 @@ import { useServiceLocationStore } from "@/lib/stores/service-location-store";
 import { useWishlistStore } from "@/lib/stores/wishlist-store";
 
 export function Providers({ children }: { children: ReactNode }) {
+  const commerceHydrated = useCommerceStore((state) => state.hasHydrated);
+  const syncBannersFromRemote = useCommerceStore((state) => state.syncBannersFromRemote);
+
   useEffect(() => {
     useCartStore.persist.rehydrate();
     useWishlistStore.persist.rehydrate();
@@ -18,6 +21,14 @@ export function Providers({ children }: { children: ReactNode }) {
     useServiceLocationStore.persist.rehydrate();
     useCommerceStore.persist.rehydrate();
   }, []);
+
+  useEffect(() => {
+    if (!commerceHydrated) {
+      return;
+    }
+
+    void syncBannersFromRemote();
+  }, [commerceHydrated, syncBannersFromRemote]);
 
   return (
     <>

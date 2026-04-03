@@ -10,6 +10,8 @@ import {
   products as seedProducts,
   sampleOrders as seedOrders,
 } from "@/lib/data/mock-data";
+import { getSupabaseBrowserClient } from "@/lib/supabase/browser-client";
+import { hasSupabaseEnv } from "@/lib/supabase/env";
 import type {
   Banner,
   Category,
@@ -209,6 +211,7 @@ interface CommerceStore {
   orderEvents: OrderEvent[];
   hasHydrated: boolean;
   setHasHydrated: (hydrated: boolean) => void;
+  syncBannersFromRemote: () => Promise<void>;
   createCategory: (input: CreateCategoryInput) => { ok: boolean; message?: string };
   updateCategory: (
     categoryId: string,
@@ -262,6 +265,119 @@ function hasDuplicateSlug<T extends { id: string; slug: string }>(
   );
 }
 
+interface BannerRow {
+  id: string;
+  title: string;
+  subtitle: string | null;
+  cta_label: string | null;
+  href: string | null;
+  badge: string | null;
+  image_url: string;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value,
+  );
+}
+
+async function fetchBannersFromRemote() {
+  if (!hasSupabaseEnv()) {
+    return null;
+  }
+
+  try {
+    const supabase = getSupabaseBrowserClient();
+    const { data, error } = await supabase
+      .from("banners")
+      .select("id,title,subtitle,cta_label,href,badge,image_url,active,created_at,updated_at")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      return null;
+    }
+
+    return (data as BannerRow[]).map((row, index) => ({
+      id: row.id,
+      title: row.title,
+      subtitle: row.subtitle ?? "",
+      ctaLabel: row.cta_label ?? "",
+      href: row.href ?? "",
+      badge: row.badge ?? "",
+      imageUrl: row.image_url,
+      active: row.active,
+      position: index + 1,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }));
+  } catch {
+    return null;
+  }
+}
+
+async function upsertBannerRemote(banner: Banner) {
+  if (!hasSupabaseEnv()) {
+    return;
+  }
+
+  try {
+    const supabase = getSupabaseBrowserClient();
+    const payload = {
+      title: banner.title,
+      subtitle: banner.subtitle ?? null,
+      cta_label: banner.ctaLabel ?? null,
+      href: banner.href ?? null,
+      badge: banner.badge ?? null,
+      image_url: banner.imageUrl,
+      active: banner.active,
+      updated_at: nowIso(),
+    };
+
+    if (isUuid(banner.id)) {
+      await supabase.from("banners").upsert({
+        id: banner.id,
+        ...payload,
+      });
+      return;
+    }
+
+    const { data: updated } = await supabase
+      .from("banners")
+      .update(payload)
+      .eq("title", banner.title)
+      .select("id")
+      .limit(1);
+
+    if (!updated?.length) {
+      await supabase.from("banners").insert(payload);
+    }
+  } catch {}
+}
+
+async function deleteBannerRemote(bannerId: string) {
+  if (!hasSupabaseEnv()) {
+    return;
+  }
+
+  try {
+    const supabase = getSupabaseBrowserClient();
+    if (isUuid(bannerId)) {
+      await supabase.from("banners").delete().eq("id", bannerId);
+      return;
+    }
+
+    const localBanner = useCommerceStore.getState().banners.find((banner) => banner.id === bannerId);
+    if (!localBanner) {
+      return;
+    }
+
+    await supabase.from("banners").delete().eq("title", localBanner.title);
+  } catch {}
+}
+
 export const useCommerceStore = create<CommerceStore>()(
   persist(
     (set, get) => ({
@@ -274,6 +390,33 @@ export const useCommerceStore = create<CommerceStore>()(
       orderEvents: seededOrderEvents,
       hasHydrated: false,
       setHasHydrated: (hydrated) => set({ hasHydrated: hydrated }),
+      syncBannersFromRemote: async () => {
+        const remoteBanners = await fetchBannersFromRemote();
+        if (remoteBanners) {
+          set({
+            banners: remoteBanners,
+          });
+          if (remoteBanners.length) {
+            return;
+          }
+        }
+
+        if (!hasSupabaseEnv()) {
+          return;
+        }
+
+        for (const banner of get().banners) {
+          // Backfill remote when the banners table is empty.
+          await upsertBannerRemote(banner);
+        }
+
+        const syncedBanners = await fetchBannersFromRemote();
+        if (syncedBanners) {
+          set({
+            banners: syncedBanners,
+          });
+        }
+      },
       createCategory: (input) => {
         const name = input.name.trim();
         if (!name) {
@@ -556,49 +699,79 @@ export const useCommerceStore = create<CommerceStore>()(
         };
 
         set((state) => ({ banners: [...state.banners, nextBanner] }));
+        void upsertBannerRemote(nextBanner);
         return { ok: true };
       },
       updateBanner: (bannerId, input) => {
+        let updatedBanner: Banner | undefined;
         set((state) => ({
           banners: state.banners.map((banner) =>
             banner.id === bannerId
-              ? {
-                  ...banner,
-                  title: input.title.trim(),
-                  subtitle: input.subtitle?.trim() || "",
-                  ctaLabel: input.ctaLabel?.trim() || "",
-                  href: input.href?.trim() || "",
-                  badge: input.badge?.trim() || "",
-                  imageUrl: input.imageUrl.trim(),
-                  position: input.position,
-                  active: input.active,
-                  updatedAt: nowIso(),
-                }
+              ? (() => {
+                  updatedBanner = {
+                    ...banner,
+                    title: input.title.trim(),
+                    subtitle: input.subtitle?.trim() || "",
+                    ctaLabel: input.ctaLabel?.trim() || "",
+                    href: input.href?.trim() || "",
+                    badge: input.badge?.trim() || "",
+                    imageUrl: input.imageUrl.trim(),
+                    position: input.position,
+                    active: input.active,
+                    updatedAt: nowIso(),
+                  };
+                  return updatedBanner;
+                })()
               : banner,
           ),
         }));
+        if (updatedBanner) {
+          void upsertBannerRemote(updatedBanner);
+        }
         return { ok: true };
       },
-      toggleBannerActive: (bannerId) =>
+      toggleBannerActive: (bannerId) => {
+        let updatedBanner: Banner | undefined;
         set((state) => ({
           banners: state.banners.map((banner) =>
             banner.id === bannerId
-              ? { ...banner, active: !banner.active, updatedAt: nowIso() }
+              ? (() => {
+                  updatedBanner = {
+                    ...banner,
+                    active: !banner.active,
+                    updatedAt: nowIso(),
+                  };
+                  return updatedBanner;
+                })()
               : banner,
           ),
-        })),
-      deleteBanner: (bannerId) =>
+        }));
+        if (updatedBanner) {
+          void upsertBannerRemote(updatedBanner);
+        }
+      },
+      deleteBanner: (bannerId) => {
         set((state) => ({
           banners: state.banners.filter((banner) => banner.id !== bannerId),
-        })),
-      reorderBanner: (bannerId, position) =>
+        }));
+        void deleteBannerRemote(bannerId);
+      },
+      reorderBanner: (bannerId, position) => {
+        let updatedBanner: Banner | undefined;
         set((state) => ({
           banners: state.banners.map((banner) =>
             banner.id === bannerId
-              ? { ...banner, position, updatedAt: nowIso() }
+              ? (() => {
+                  updatedBanner = { ...banner, position, updatedAt: nowIso() };
+                  return updatedBanner;
+                })()
               : banner,
           ),
-        })),
+        }));
+        if (updatedBanner) {
+          void upsertBannerRemote(updatedBanner);
+        }
+      },
       incrementCouponUsage: (code) =>
         set((state) => ({
           coupons: state.coupons.map((coupon) =>

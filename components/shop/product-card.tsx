@@ -46,14 +46,14 @@ export function ProductCard({ product, compact = false, className }: ProductCard
       whileHover={{ y: -4 }}
       transition={{ duration: 0.2, ease: "easeOut" }}
       className={cn(
-        "group flex h-full flex-col overflow-hidden rounded-3xl border border-[var(--border)] bg-white shadow-[var(--shadow-soft)] transition",
+        "group flex h-full flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-white shadow-[var(--shadow-soft)] transition",
         className,
       )}
     >
       <div className="relative">
         <Link
           href={`/product/${product.slug}`}
-          className="relative block aspect-[4/5] overflow-hidden bg-[var(--brand-50)]"
+          className="relative block aspect-[3/4] overflow-hidden bg-[var(--brand-50)]"
         >
           <Image
             src={image.url}
@@ -71,21 +71,21 @@ export function ProductCard({ product, compact = false, className }: ProductCard
           type="button"
           onClick={handleToggleWishlist}
           aria-label="Toggle wishlist"
-          className="absolute right-2 top-2 inline-flex size-9 items-center justify-center rounded-full bg-white/90 text-[var(--foreground-muted)] shadow-sm transition hover:bg-white hover:text-[var(--foreground)]"
+          className="absolute right-1.5 top-1.5 inline-flex size-8 items-center justify-center rounded-full bg-white/90 text-[var(--foreground-muted)] shadow-sm transition hover:bg-white hover:text-[var(--foreground)]"
         >
           <Heart className={cn("size-4", hasInWishlist ? "fill-[var(--brand-900)] text-[var(--brand-900)]" : "")} />
         </button>
       </div>
-      <div className="flex flex-1 flex-col gap-3 p-3 sm:p-4">
-        <div className="min-h-[5.5rem] space-y-1">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-[var(--foreground-subtle)]">{product.brand}</p>
+      <div className="flex flex-1 flex-col gap-2 p-2.5 sm:p-3">
+        <div className="min-h-[4.2rem] space-y-0.5">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-[var(--foreground-subtle)]">{product.brand}</p>
           <Link
             href={`/product/${product.slug}`}
-            className="line-clamp-2 text-sm font-semibold text-[var(--foreground)] transition hover:text-[var(--brand-800)] sm:text-base"
+            className="line-clamp-2 text-xs font-semibold text-[var(--foreground)] transition hover:text-[var(--brand-800)] sm:text-sm"
           >
             {product.name}
           </Link>
-          <p className="line-clamp-2 text-xs text-[var(--foreground-muted)] sm:text-sm">{product.shortDescription}</p>
+          <p className="line-clamp-2 text-[11px] text-[var(--foreground-muted)] sm:text-xs">{product.shortDescription}</p>
         </div>
         <RatingStars rating={product.rating} reviewCount={product.ratingCount} />
         <div className="mt-auto space-y-2">
@@ -96,7 +96,7 @@ export function ProductCard({ product, compact = false, className }: ProductCard
             </div>
           </div>
           {!compact ? (
-            <Button size="sm" className="h-10 w-full rounded-xl" onClick={handleAddToCart}>
+            <Button size="sm" className="h-8 w-full rounded-lg px-2 text-[11px]" onClick={handleAddToCart}>
               <ShoppingBag className="size-4" />
               Add to Cart
             </Button>

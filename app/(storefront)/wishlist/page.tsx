@@ -34,7 +34,7 @@ export default function WishlistPage() {
         description="Keep track of products you want to revisit."
       />
       {wishlistProducts.length ? (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
           {wishlistProducts.map((product) => (
             <ProductCard key={product.id} product={product} />
           ))}
