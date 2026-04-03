@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { useAddressStore } from "@/lib/stores/address-store";
 import { useCartStore } from "@/lib/stores/cart-store";
+import { useCommerceStore } from "@/lib/stores/commerce-store";
 import { useServiceLocationStore } from "@/lib/stores/service-location-store";
 import { useWishlistStore } from "@/lib/stores/wishlist-store";
 
@@ -15,6 +16,7 @@ export function Providers({ children }: { children: ReactNode }) {
     useWishlistStore.persist.rehydrate();
     useAddressStore.persist.rehydrate();
     useServiceLocationStore.persist.rehydrate();
+    useCommerceStore.persist.rehydrate();
   }, []);
 
   return (

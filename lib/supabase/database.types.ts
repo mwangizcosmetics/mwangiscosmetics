@@ -494,6 +494,9 @@ export interface Database {
           county_id: string;
           name: string;
           is_active: boolean;
+          eta_min_value: number | null;
+          eta_max_value: number | null;
+          eta_unit: "hours" | "days" | null;
           estimated_delivery_days: number | null;
           delivery_fee: number | null;
           created_at: string;
@@ -504,6 +507,9 @@ export interface Database {
           county_id: string;
           name: string;
           is_active?: boolean;
+          eta_min_value?: number | null;
+          eta_max_value?: number | null;
+          eta_unit?: "hours" | "days" | null;
           estimated_delivery_days?: number | null;
           delivery_fee?: number | null;
           created_at?: string;
@@ -513,6 +519,9 @@ export interface Database {
           county_id?: string;
           name?: string;
           is_active?: boolean;
+          eta_min_value?: number | null;
+          eta_max_value?: number | null;
+          eta_unit?: "hours" | "days" | null;
           estimated_delivery_days?: number | null;
           delivery_fee?: number | null;
           updated_at?: string;
@@ -531,7 +540,12 @@ export interface Database {
       user_role: "customer" | "admin";
       order_status:
         | "pending"
+        | "confirmed"
         | "paid"
+        | "preparing"
+        | "left_shop"
+        | "in_transit"
+        | "out_for_delivery"
         | "processing"
         | "shipped"
         | "delivered"

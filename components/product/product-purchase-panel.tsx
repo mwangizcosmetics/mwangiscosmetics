@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Heart, ShieldCheck, ShoppingBag, Truck, Zap } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -13,6 +13,19 @@ import { QuantitySelector } from "@/components/product/quantity-selector";
 import { useCartStore } from "@/lib/stores/cart-store";
 import { useWishlistStore } from "@/lib/stores/wishlist-store";
 import { formatRelativeStock } from "@/lib/utils/format";
+import { useServiceLocationStore } from "@/lib/stores/service-location-store";
+import {
+  getActiveCounties,
+  getActiveTownsForCounty,
+} from "@/lib/services/service-location-service";
+import { getDeliveryQuote } from "@/lib/services/commerce-selectors";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface ProductPurchasePanelProps {
   product: Product;
@@ -20,13 +33,31 @@ interface ProductPurchasePanelProps {
 
 export function ProductPurchasePanel({ product }: ProductPurchasePanelProps) {
   const [quantity, setQuantity] = useState(1);
+  const [selectedCountyId, setSelectedCountyId] = useState("");
+  const [selectedTownId, setSelectedTownId] = useState("");
   const addItem = useCartStore((state) => state.addItem);
   const toggleWishlist = useWishlistStore((state) => state.toggleItem);
   const hasInWishlist = useWishlistStore((state) =>
     state.items.some((item) => item.productId === product.id),
   );
+  const counties = useServiceLocationStore((state) => state.counties);
+  const towns = useServiceLocationStore((state) => state.towns);
 
   const stockLabel = useMemo(() => formatRelativeStock(product.stock), [product.stock]);
+  const activeCounties = useMemo(() => getActiveCounties(counties, towns), [counties, towns]);
+  const effectiveCountyId = selectedCountyId || activeCounties[0]?.id || "";
+  const activeTowns = useMemo(
+    () => getActiveTownsForCounty(towns, effectiveCountyId),
+    [effectiveCountyId, towns],
+  );
+  const effectiveTownId =
+    selectedTownId && activeTowns.some((town) => town.id === selectedTownId)
+      ? selectedTownId
+      : activeTowns[0]?.id || "";
+  const deliveryQuote = useMemo(
+    () => getDeliveryQuote(counties, towns, effectiveCountyId, effectiveTownId),
+    [counties, effectiveCountyId, effectiveTownId, towns],
+  );
 
   const handleAddToCart = () => {
     addItem(product.id, quantity);
@@ -81,9 +112,51 @@ export function ProductPurchasePanel({ product }: ProductPurchasePanelProps) {
         </div>
       </div>
       <div className="space-y-2 rounded-2xl bg-[var(--surface-alt)] p-4 text-sm text-[var(--foreground-muted)]">
+        <div className="space-y-2 rounded-2xl border border-[var(--border)] bg-white p-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--foreground-subtle)]">
+            Delivery Estimate
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Select
+              value={effectiveCountyId || undefined}
+              onValueChange={(value) => {
+                setSelectedCountyId(value);
+                setSelectedTownId("");
+              }}
+            >
+              <SelectTrigger className="h-9 rounded-xl">
+                <SelectValue placeholder="County" />
+              </SelectTrigger>
+              <SelectContent>
+                {activeCounties.map((county) => (
+                  <SelectItem key={county.id} value={county.id}>
+                    {county.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={effectiveTownId || undefined} onValueChange={setSelectedTownId}>
+              <SelectTrigger className="h-9 rounded-xl">
+                <SelectValue placeholder="Town/Center" />
+              </SelectTrigger>
+              <SelectContent>
+                {activeTowns.map((town) => (
+                  <SelectItem key={town.id} value={town.id}>
+                    {town.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <p className="text-xs text-[var(--foreground-muted)]">
+            {deliveryQuote.isServiceable
+              ? `Deliver to ${deliveryQuote.townName} in ${deliveryQuote.etaText} - KSh ${deliveryQuote.fee}`
+              : "Select a serviceable county and town for delivery fee and ETA."}
+          </p>
+        </div>
         <div className="flex items-center gap-2">
           <Truck className="size-4 text-[var(--brand-700)]" />
-          Free delivery for orders above KES 7,500
+          Delivery fee is calculated by selected town
         </div>
         <div className="flex items-center gap-2">
           <ShieldCheck className="size-4 text-[var(--brand-700)]" />

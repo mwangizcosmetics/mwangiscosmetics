@@ -15,7 +15,12 @@ export interface Category {
   image: string;
   productCount: number;
   featured?: boolean;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
+
+export type EtaUnit = "hours" | "days";
 
 export interface ServiceCounty {
   id: string;
@@ -30,6 +35,9 @@ export interface ServiceTown {
   countyId: string;
   name: string;
   isActive: boolean;
+  etaMinValue?: number | null;
+  etaMaxValue?: number | null;
+  etaUnit?: EtaUnit | null;
   estimatedDeliveryDays?: number | null;
   deliveryFee?: number | null;
   createdAt: string;
@@ -52,6 +60,7 @@ export interface Product {
   id: string;
   slug: string;
   name: string;
+  categoryId?: string;
   shortDescription: string;
   description: string;
   brand: string;
@@ -68,10 +77,13 @@ export interface Product {
   isNew?: boolean;
   isBestSeller?: boolean;
   isFeatured?: boolean;
+  isActive?: boolean;
   highlights: string[];
   ingredients: string[];
   benefits: string[];
   howToUse: string[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface CartItem {
@@ -87,7 +99,12 @@ export interface WishlistItem {
 
 export type OrderStatus =
   | "pending"
+  | "confirmed"
   | "paid"
+  | "preparing"
+  | "left_shop"
+  | "in_transit"
+  | "out_for_delivery"
   | "processing"
   | "shipped"
   | "delivered"
@@ -137,6 +154,15 @@ export interface Order {
   placedAt: string;
   estimatedDelivery?: string;
   shippingAddress: Address;
+  deliverySnapshot?: {
+    county: string;
+    townCenter: string;
+    deliveryFee: number;
+    etaMinValue?: number | null;
+    etaMaxValue?: number | null;
+    etaUnit?: EtaUnit | null;
+    etaText: string;
+  };
   paymentMethod: string;
 }
 
@@ -158,8 +184,13 @@ export interface Coupon {
   type: "percentage" | "fixed";
   value: number;
   minSubtotal?: number;
+  usageLimit?: number;
+  usageCount?: number;
   active: boolean;
+  isDeleted?: boolean;
   expiresAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Banner {
@@ -170,9 +201,33 @@ export interface Banner {
   href?: string;
   badge?: string;
   imageUrl: string;
+  position?: number;
   active: boolean;
+  isDeleted?: boolean;
   startsAt?: string;
   endsAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface RefundRequest {
+  id: string;
+  orderId: string;
+  userId: string;
+  reason: string;
+  note?: string;
+  status: "requested" | "under_review" | "approved" | "declined" | "refunded";
+  adminNote?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrderEvent {
+  id: string;
+  orderId: string;
+  eventType: string;
+  message: string;
+  createdAt: string;
 }
 
 export interface Testimonial {

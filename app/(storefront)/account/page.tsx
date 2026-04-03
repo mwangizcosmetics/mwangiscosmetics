@@ -1,12 +1,26 @@
-import Link from "next/link";
+"use client";
 
-import { sampleOrders, sampleProfile } from "@/lib/data/mock-data";
+import Link from "next/link";
+import { useMemo } from "react";
+
+import { sampleProfile } from "@/lib/data/mock-data";
 import { SiteContainer } from "@/components/shared/site-container";
 import { AccountOverviewCard } from "@/components/account/account-overview-card";
 import { OrderListItem } from "@/components/account/order-list-item";
 import { AddressBook } from "@/components/account/address-book";
+import { useCommerceStore } from "@/lib/stores/commerce-store";
 
 export default function AccountPage() {
+  const orders = useCommerceStore((state) => state.orders);
+  const recentOrders = useMemo(
+    () =>
+      [...orders]
+        .filter((order) => order.userId === sampleProfile.id)
+        .sort((a, b) => b.placedAt.localeCompare(a.placedAt))
+        .slice(0, 2),
+    [orders],
+  );
+
   return (
     <SiteContainer className="space-y-5 py-6 sm:py-8">
       <AccountOverviewCard profile={sampleProfile} />
@@ -19,7 +33,7 @@ export default function AccountPage() {
           </Link>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          {sampleOrders.slice(0, 2).map((order) => (
+          {recentOrders.map((order) => (
             <OrderListItem key={order.id} order={order} />
           ))}
         </div>

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CheckCircle2, MapPinHouse } from "lucide-react";
@@ -8,12 +8,14 @@ import { toast } from "sonner";
 
 import { sampleProfile } from "@/lib/data/mock-data";
 import { mapAddressFromForm } from "@/lib/services/address-service";
+import { getDeliveryQuote } from "@/lib/services/commerce-selectors";
 import {
   getActiveCounties,
   getActiveTownsForCounty,
 } from "@/lib/services/service-location-service";
 import { useAddressStore } from "@/lib/stores/address-store";
 import { useServiceLocationStore } from "@/lib/stores/service-location-store";
+import type { Address } from "@/lib/types/ecommerce";
 import { checkoutSchema, type CheckoutFormValues } from "@/lib/validators/checkout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,7 +31,25 @@ import { cn } from "@/lib/utils/cn";
 
 const DEFAULT_PAYMENT_METHOD: CheckoutFormValues["paymentMethod"] = "mpesa";
 
-export function CheckoutAddressForm() {
+export interface CheckoutAddressSubmitPayload {
+  address: Address;
+  paymentMethod: CheckoutFormValues["paymentMethod"];
+  deliveryQuote: ReturnType<typeof getDeliveryQuote>;
+}
+
+interface CheckoutAddressFormProps {
+  onDeliveryQuoteChange?: (
+    quote: ReturnType<typeof getDeliveryQuote>,
+  ) => void;
+  onSubmitCheckout?: (
+    payload: CheckoutAddressSubmitPayload,
+  ) => Promise<void> | void;
+}
+
+export function CheckoutAddressForm({
+  onDeliveryQuoteChange,
+  onSubmitCheckout,
+}: CheckoutAddressFormProps) {
   const addresses = useAddressStore((state) => state.addresses);
   const selectedAddressId = useAddressStore((state) => state.selectedAddressId);
   const hasAddressHydrated = useAddressStore((state) => state.hasHydrated);
@@ -38,7 +58,9 @@ export function CheckoutAddressForm() {
 
   const counties = useServiceLocationStore((state) => state.counties);
   const towns = useServiceLocationStore((state) => state.towns);
-  const hasServiceLocationHydrated = useServiceLocationStore((state) => state.hasHydrated);
+  const hasServiceLocationHydrated = useServiceLocationStore(
+    (state) => state.hasHydrated,
+  );
 
   const [paymentMethod, setPaymentMethod] =
     useState<CheckoutFormValues["paymentMethod"]>(DEFAULT_PAYMENT_METHOD);
@@ -81,8 +103,7 @@ export function CheckoutAddressForm() {
     }
 
     return (
-      addresses.find((address) => address.id === selectedAddressId) ??
-      primaryAddress
+      addresses.find((address) => address.id === selectedAddressId) ?? primaryAddress
     );
   }, [addresses, primaryAddress, selectedAddressId]);
 
@@ -95,6 +116,7 @@ export function CheckoutAddressForm() {
     () => getActiveTownsForCounty(towns, selectedCountyId),
     [selectedCountyId, towns],
   );
+
   const addressMode: "saved" | "new" =
     addresses.length === 0 || showNewAddressForm ? "new" : "saved";
 
@@ -122,8 +144,12 @@ export function CheckoutAddressForm() {
     setValue("fullName", selectedSavedAddress.fullName, { shouldValidate: true });
     setValue("phone", selectedSavedAddress.phone, { shouldValidate: true });
     setValue("countyId", selectedSavedAddress.countyId, { shouldValidate: true });
-    setValue("townCenterId", selectedSavedAddress.townCenterId, { shouldValidate: true });
-    setValue("streetAddress", selectedSavedAddress.streetAddress, { shouldValidate: true });
+    setValue("townCenterId", selectedSavedAddress.townCenterId, {
+      shouldValidate: true,
+    });
+    setValue("streetAddress", selectedSavedAddress.streetAddress, {
+      shouldValidate: true,
+    });
     setValue("buildingOrHouse", selectedSavedAddress.buildingOrHouse ?? "");
     setValue("landmark", selectedSavedAddress.landmark ?? "");
   }, [addressMode, selectedSavedAddress, setValue]);
@@ -142,64 +168,76 @@ export function CheckoutAddressForm() {
     }
   }, [activeTownsForSelectedCounty, selectedTownCenterId, setValue]);
 
-  const hasCountySelected = Boolean(selectedCountyId);
-  const hasSelectedActiveCounty = activeCounties.some(
-    (county) => county.id === selectedCountyId,
-  );
-  const hasActiveServiceTowns = activeTownsForSelectedCounty.length > 0;
-  const hasSelectedTownService = activeTownsForSelectedCounty.some(
-    (town) => town.id === selectedTownCenterId,
+  const deliveryQuote = useMemo(
+    () =>
+      getDeliveryQuote(counties, towns, selectedCountyId, selectedTownCenterId),
+    [counties, selectedCountyId, selectedTownCenterId, towns],
   );
 
+  useEffect(() => {
+    onDeliveryQuoteChange?.(deliveryQuote);
+  }, [deliveryQuote, onDeliveryQuoteChange]);
+
+  const hasCountySelected = Boolean(selectedCountyId);
+  const hasTownSelected = Boolean(selectedTownCenterId);
   const serviceabilityError =
-    hasCountySelected && !hasSelectedActiveCounty
-      ? "This county is currently outside our active delivery coverage."
-      : hasCountySelected && !hasActiveServiceTowns
-      ? "We currently do not deliver to this county yet. Please choose another county."
-      : selectedTownCenterId && !hasSelectedTownService
-        ? "Selected town is currently not serviceable. Please choose another town."
-        : null;
+    hasCountySelected && hasTownSelected && !deliveryQuote.isServiceable
+      ? "Selected location is currently not serviceable. Choose another county or town."
+      : null;
 
   const onSubmit = async (values: CheckoutFormValues) => {
-    if (serviceabilityError) {
-      toast.error(serviceabilityError);
+    if (serviceabilityError || !deliveryQuote.isServiceable) {
+      toast.error(
+        serviceabilityError ?? "Please select a serviceable county and town.",
+      );
       return;
     }
+
+    let finalAddress: Address;
 
     if (addressMode === "saved" && selectedSavedAddress) {
-      toast.success("Checkout details captured with your saved address.");
-      return;
-    }
+      finalAddress = selectedSavedAddress;
+    } else {
+      finalAddress = mapAddressFromForm({
+        values: {
+          label: undefined,
+          fullName: values.fullName,
+          phone: values.phone,
+          countyId: values.countyId,
+          townCenterId: values.townCenterId,
+          streetAddress: values.streetAddress,
+          buildingOrHouse: values.buildingOrHouse,
+          landmark: values.landmark,
+          isPrimary: addresses.length === 0,
+        },
+        userId: sampleProfile.id,
+        counties,
+        towns,
+        forcePrimary: addresses.length === 0,
+      });
 
-    const generatedAddress = mapAddressFromForm({
-      values: {
-        label: undefined,
-        fullName: values.fullName,
-        phone: values.phone,
-        countyId: values.countyId,
-        townCenterId: values.townCenterId,
-        streetAddress: values.streetAddress,
-        buildingOrHouse: values.buildingOrHouse,
-        landmark: values.landmark,
-        isPrimary: addresses.length === 0,
-      },
-      userId: sampleProfile.id,
-      counties,
-      towns,
-      forcePrimary: addresses.length === 0,
-    });
-
-    if (saveAddress) {
-      const result = addAddress(generatedAddress);
-      if (!result.ok) {
-        toast.error(result.message ?? "Unable to save this address.");
-      } else {
-        selectAddress(generatedAddress.id);
-        setShowNewAddressForm(false);
+      if (saveAddress) {
+        const result = addAddress(finalAddress);
+        if (!result.ok) {
+          toast.error(result.message ?? "Unable to save this address.");
+        } else {
+          selectAddress(finalAddress.id);
+          setShowNewAddressForm(false);
+        }
       }
     }
 
-    toast.success("Checkout details captured. Connect payment and order API next.");
+    await onSubmitCheckout?.({
+      address: finalAddress,
+      paymentMethod,
+      deliveryQuote,
+    });
+
+    if (!onSubmitCheckout) {
+      toast.success(
+        `Checkout details captured. ETA ${deliveryQuote.etaText}, KES ${deliveryQuote.fee}.`,
+      );
+    }
   };
 
   if (!hasAddressHydrated || !hasServiceLocationHydrated) {
@@ -271,8 +309,12 @@ export function CheckoutAddressForm() {
                       <CheckCircle2 className="size-4 text-[var(--brand-900)]" />
                     ) : null}
                   </div>
-                  <p className="mt-1 text-xs text-[var(--foreground-muted)]">{address.fullName}</p>
-                  <p className="text-xs text-[var(--foreground-muted)]">{address.streetAddress}</p>
+                  <p className="mt-1 text-xs text-[var(--foreground-muted)]">
+                    {address.fullName}
+                  </p>
+                  <p className="text-xs text-[var(--foreground-muted)]">
+                    {address.streetAddress}
+                  </p>
                   <p className="text-xs text-[var(--foreground-muted)]">
                     {address.townCenter}, {address.county}
                   </p>
@@ -301,7 +343,9 @@ export function CheckoutAddressForm() {
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="phone">Phone Number</Label>
             <Input id="phone" placeholder="+254712345678" {...register("phone")} />
-            {errors.phone ? <p className="text-xs text-[#a11f2f]">{errors.phone.message}</p> : null}
+            {errors.phone ? (
+              <p className="text-xs text-[#a11f2f]">{errors.phone.message}</p>
+            ) : null}
           </div>
 
           <div className="space-y-2">
@@ -344,7 +388,7 @@ export function CheckoutAddressForm() {
                 <Select
                   value={field.value}
                   onValueChange={field.onChange}
-                  disabled={!selectedCountyId || !hasActiveServiceTowns}
+                  disabled={!selectedCountyId || !activeTownsForSelectedCounty.length}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select town/center" />
@@ -403,17 +447,30 @@ export function CheckoutAddressForm() {
           <p className="mt-2 text-sm text-[var(--foreground-muted)]">
             {selectedSavedAddress.fullName} • {selectedSavedAddress.phone}
           </p>
-          <p className="text-sm text-[var(--foreground-muted)]">{selectedSavedAddress.streetAddress}</p>
+          <p className="text-sm text-[var(--foreground-muted)]">
+            {selectedSavedAddress.streetAddress}
+          </p>
           {selectedSavedAddress.buildingOrHouse ? (
             <p className="text-sm text-[var(--foreground-muted)]">
               {selectedSavedAddress.buildingOrHouse}
             </p>
           ) : null}
           {selectedSavedAddress.landmark ? (
-            <p className="text-sm text-[var(--foreground-muted)]">{selectedSavedAddress.landmark}</p>
+            <p className="text-sm text-[var(--foreground-muted)]">
+              {selectedSavedAddress.landmark}
+            </p>
           ) : null}
         </div>
       ) : null}
+
+      <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-alt)] p-3 text-sm">
+        <p className="font-medium text-[var(--foreground)]">Delivery quote</p>
+        <p className="mt-1 text-[var(--foreground-muted)]">
+          {deliveryQuote.isServiceable
+            ? `${deliveryQuote.townName}, ${deliveryQuote.countyName} • ${deliveryQuote.etaText} • KES ${deliveryQuote.fee}`
+            : "Select a valid county and town to see delivery fee and ETA."}
+        </p>
+      </div>
 
       {serviceabilityError ? (
         <p className="rounded-2xl border border-[#f8ccd2] bg-[#fff2f4] p-3 text-sm text-[#8b1c2c]">
@@ -463,15 +520,10 @@ export function CheckoutAddressForm() {
       <Button
         type="submit"
         className="h-11 w-full rounded-full"
-        disabled={isSubmitting || Boolean(serviceabilityError)}
+        disabled={isSubmitting || !deliveryQuote.isServiceable}
       >
-        {isSubmitting ? "Processing..." : "Place Order (Demo)"}
+        {isSubmitting ? "Processing..." : "Confirm Delivery Details"}
       </Button>
-
-      <p className="text-xs text-[var(--foreground-subtle)]">
-        Payment processing and order placement are scaffolded for integration with your live backend APIs.
-      </p>
     </form>
   );
 }
-

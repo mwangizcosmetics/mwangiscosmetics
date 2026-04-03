@@ -33,6 +33,8 @@ export const adminSidebarNav = [
   { label: "Customers", href: "/admin/customers", icon: UserRound },
   { label: "Coupons", href: "/admin/coupons", icon: Gift },
   { label: "Service Locations", href: "/admin/service-locations", icon: MapPin },
+  { label: "Delivery Tracking", href: "/admin/delivery", icon: ShoppingBag },
+  { label: "Refunds", href: "/admin/refunds", icon: Heart },
   { label: "Banners", href: "/admin/banners", icon: PackageSearch },
   { label: "Reviews", href: "/admin/reviews", icon: Heart },
 ];

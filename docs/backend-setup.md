@@ -4,6 +4,7 @@ This project now includes:
 
 - SQL schema + RLS migration: `supabase/migrations/20260402_000001_init_schema.sql`
 - Service locations + address upgrade migration: `supabase/migrations/20260403_000002_service_locations_and_address_upgrade.sql`
+- Commerce operations migration (refunds, order events, status extensions): `supabase/migrations/20260403_000003_commerce_ops.sql`
 - Seed data: `supabase/seed.sql`
 - Supabase-backed catalog services with mock fallback
 - Auth route protection middleware for `/account`, `/orders`, `/checkout`, `/admin`
@@ -25,6 +26,7 @@ This project now includes:
 2. In Supabase SQL Editor, run:
    - `supabase/migrations/20260402_000001_init_schema.sql`
    - `supabase/migrations/20260403_000002_service_locations_and_address_upgrade.sql`
+   - `supabase/migrations/20260403_000003_commerce_ops.sql`
    - `supabase/seed.sql`
 3. In Auth settings:
    - set your site URL (local + production)

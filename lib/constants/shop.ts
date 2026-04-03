@@ -18,7 +18,12 @@ export const quickFilterChips = [
 
 export const orderStatusDisplay = {
   pending: "Pending",
+  confirmed: "Confirmed",
   paid: "Paid",
+  preparing: "Preparing",
+  left_shop: "Left Shop",
+  in_transit: "In Transit",
+  out_for_delivery: "Out for Delivery",
   processing: "Processing",
   shipped: "Shipped",
   delivered: "Delivered",

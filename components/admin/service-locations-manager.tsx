@@ -1,16 +1,50 @@
 ﻿"use client";
 
-import { Edit3, MapPinned, Plus, Search } from "lucide-react";
+import { Edit3, MapPinned, Plus, Search, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useServiceLocationStore } from "@/lib/stores/service-location-store";
+import { formatEtaRange } from "@/lib/utils/format";
 
 function normalize(value: string) {
   return value.trim().toLowerCase();
+}
+
+interface TownDraft {
+  name: string;
+  deliveryFee: string;
+  etaMinValue: string;
+  etaMaxValue: string;
+  etaUnit: "hours" | "days";
+}
+
+const emptyTownDraft: TownDraft = {
+  name: "",
+  deliveryFee: "",
+  etaMinValue: "",
+  etaMaxValue: "",
+  etaUnit: "days",
+};
+
+function toTownPayload(draft: TownDraft) {
+  return {
+    name: draft.name,
+    deliveryFee: draft.deliveryFee ? Number(draft.deliveryFee) : null,
+    etaMinValue: draft.etaMinValue ? Number(draft.etaMinValue) : null,
+    etaMaxValue: draft.etaMaxValue ? Number(draft.etaMaxValue) : null,
+    etaUnit: draft.etaUnit,
+  };
 }
 
 export function ServiceLocationsManager() {
@@ -20,17 +54,19 @@ export function ServiceLocationsManager() {
   const addCounty = useServiceLocationStore((state) => state.addCounty);
   const updateCounty = useServiceLocationStore((state) => state.updateCounty);
   const toggleCountyActive = useServiceLocationStore((state) => state.toggleCountyActive);
+  const deleteCounty = useServiceLocationStore((state) => state.deleteCounty);
   const addTown = useServiceLocationStore((state) => state.addTown);
   const updateTown = useServiceLocationStore((state) => state.updateTown);
   const toggleTownActive = useServiceLocationStore((state) => state.toggleTownActive);
+  const deleteTown = useServiceLocationStore((state) => state.deleteTown);
 
   const [searchValue, setSearchValue] = useState("");
   const [newCountyName, setNewCountyName] = useState("");
-  const [townDrafts, setTownDrafts] = useState<Record<string, string>>({});
+  const [townDrafts, setTownDrafts] = useState<Record<string, TownDraft>>({});
   const [editingCountyId, setEditingCountyId] = useState<string | null>(null);
   const [editingCountyName, setEditingCountyName] = useState("");
   const [editingTownId, setEditingTownId] = useState<string | null>(null);
-  const [editingTownName, setEditingTownName] = useState("");
+  const [editingTownDraft, setEditingTownDraft] = useState<TownDraft>(emptyTownDraft);
 
   const townsByCounty = useMemo(() => {
     return towns.reduce<Record<string, typeof towns>>((accumulator, town) => {
@@ -77,7 +113,7 @@ export function ServiceLocationsManager() {
           <div>
             <h2 className="text-lg font-semibold text-[var(--foreground)]">Delivery Coverage</h2>
             <p className="text-sm text-[var(--foreground-muted)]">
-              Manage active counties and towns shown in checkout.
+              Manage active counties and towns used in checkout delivery pricing.
             </p>
           </div>
           <div className="flex items-center gap-2 text-xs text-[var(--foreground-muted)]">
@@ -132,6 +168,8 @@ export function ServiceLocationsManager() {
           const countyTowns = [...(townsByCounty[county.id] ?? [])].sort((a, b) =>
             a.name.localeCompare(b.name),
           );
+
+          const countyDraft = townDrafts[county.id] ?? emptyTownDraft;
 
           return (
             <article
@@ -209,40 +247,127 @@ export function ServiceLocationsManager() {
                       );
                     }}
                   >
-                    {county.isActive ? "Disable County" : "Enable County"}
+                    {county.isActive ? "Disable" : "Enable"}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 rounded-full text-[#a11f2f] hover:bg-[#ffe8ec] hover:text-[#a11f2f]"
+                    onClick={() => {
+                      deleteCounty(county.id);
+                      toast.success("County removed.");
+                    }}
+                  >
+                    <Trash2 className="size-3.5" />
+                    Delete
                   </Button>
                 </div>
               </div>
 
-              <div className="mt-3 flex gap-2">
+              <div className="mt-3 grid gap-2 sm:grid-cols-5">
                 <Input
-                  value={townDrafts[county.id] ?? ""}
+                  value={countyDraft.name}
                   onChange={(event) =>
                     setTownDrafts((state) => ({
                       ...state,
-                      [county.id]: event.target.value,
+                      [county.id]: {
+                        ...(state[county.id] ?? emptyTownDraft),
+                        name: event.target.value,
+                      },
                     }))
                   }
-                  placeholder={`Add town/center in ${county.name}`}
+                  placeholder={`Town/center in ${county.name}`}
+                  className="h-9 rounded-xl sm:col-span-2"
+                />
+                <Input
+                  value={countyDraft.deliveryFee}
+                  onChange={(event) =>
+                    setTownDrafts((state) => ({
+                      ...state,
+                      [county.id]: {
+                        ...(state[county.id] ?? emptyTownDraft),
+                        deliveryFee: event.target.value,
+                      },
+                    }))
+                  }
+                  placeholder="Fee"
+                  type="number"
+                  min={0}
                   className="h-9 rounded-xl"
                 />
-                <Button
-                  type="button"
-                  size="sm"
-                  className="h-9 rounded-xl"
-                  onClick={() => {
-                    const result = addTown(county.id, townDrafts[county.id] ?? "");
-                    if (!result.ok) {
-                      toast.error(result.message ?? "Unable to add town.");
-                      return;
+                <div className="flex gap-2">
+                  <Input
+                    value={countyDraft.etaMinValue}
+                    onChange={(event) =>
+                      setTownDrafts((state) => ({
+                        ...state,
+                        [county.id]: {
+                          ...(state[county.id] ?? emptyTownDraft),
+                          etaMinValue: event.target.value,
+                        },
+                      }))
                     }
-                    toast.success("Town added.");
-                    setTownDrafts((state) => ({ ...state, [county.id]: "" }));
-                  }}
-                >
-                  <Plus className="size-3.5" />
-                  Add Town
-                </Button>
+                    placeholder="ETA min"
+                    type="number"
+                    min={1}
+                    className="h-9 rounded-xl"
+                  />
+                  <Input
+                    value={countyDraft.etaMaxValue}
+                    onChange={(event) =>
+                      setTownDrafts((state) => ({
+                        ...state,
+                        [county.id]: {
+                          ...(state[county.id] ?? emptyTownDraft),
+                          etaMaxValue: event.target.value,
+                        },
+                      }))
+                    }
+                    placeholder="ETA max"
+                    type="number"
+                    min={1}
+                    className="h-9 rounded-xl"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Select
+                    value={countyDraft.etaUnit}
+                    onValueChange={(value) =>
+                      setTownDrafts((state) => ({
+                        ...state,
+                        [county.id]: {
+                          ...(state[county.id] ?? emptyTownDraft),
+                          etaUnit: value as "hours" | "days",
+                        },
+                      }))
+                    }
+                  >
+                    <SelectTrigger className="h-9 rounded-xl">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="hours">Hours</SelectItem>
+                      <SelectItem value="days">Days</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-9 rounded-xl"
+                    onClick={() => {
+                      const result = addTown(county.id, toTownPayload(countyDraft));
+                      if (!result.ok) {
+                        toast.error(result.message ?? "Unable to add town.");
+                        return;
+                      }
+                      toast.success("Town added.");
+                      setTownDrafts((state) => ({ ...state, [county.id]: emptyTownDraft }));
+                    }}
+                  >
+                    <Plus className="size-3.5" />
+                  </Button>
+                </div>
               </div>
 
               <div className="mt-3 space-y-2">
@@ -254,29 +379,79 @@ export function ServiceLocationsManager() {
                     >
                       <div className="flex items-center gap-2">
                         {editingTownId === town.id ? (
-                          <div className="flex items-center gap-2">
+                          <div className="grid gap-2 sm:grid-cols-5">
                             <Input
-                              value={editingTownName}
-                              onChange={(event) => setEditingTownName(event.target.value)}
-                              className="h-8 w-44 rounded-xl"
+                              value={editingTownDraft.name}
+                              onChange={(event) =>
+                                setEditingTownDraft((state) => ({ ...state, name: event.target.value }))
+                              }
+                              className="h-8 rounded-xl sm:col-span-2"
                             />
-                            <Button
-                              type="button"
-                              size="sm"
+                            <Input
+                              value={editingTownDraft.deliveryFee}
+                              onChange={(event) =>
+                                setEditingTownDraft((state) => ({ ...state, deliveryFee: event.target.value }))
+                              }
                               className="h-8 rounded-xl"
-                              onClick={() => {
-                                const result = updateTown(town.id, editingTownName);
-                                if (!result.ok) {
-                                  toast.error(result.message ?? "Unable to update town.");
-                                  return;
+                              type="number"
+                              min={0}
+                            />
+                            <div className="flex gap-2">
+                              <Input
+                                value={editingTownDraft.etaMinValue}
+                                onChange={(event) =>
+                                  setEditingTownDraft((state) => ({ ...state, etaMinValue: event.target.value }))
                                 }
-                                toast.success("Town updated.");
-                                setEditingTownId(null);
-                                setEditingTownName("");
-                              }}
-                            >
-                              Save
-                            </Button>
+                                className="h-8 rounded-xl"
+                                type="number"
+                                min={1}
+                              />
+                              <Input
+                                value={editingTownDraft.etaMaxValue}
+                                onChange={(event) =>
+                                  setEditingTownDraft((state) => ({ ...state, etaMaxValue: event.target.value }))
+                                }
+                                className="h-8 rounded-xl"
+                                type="number"
+                                min={1}
+                              />
+                            </div>
+                            <div className="flex gap-2">
+                              <Select
+                                value={editingTownDraft.etaUnit}
+                                onValueChange={(value) =>
+                                  setEditingTownDraft((state) => ({
+                                    ...state,
+                                    etaUnit: value as "hours" | "days",
+                                  }))
+                                }
+                              >
+                                <SelectTrigger className="h-8 rounded-xl">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="hours">Hours</SelectItem>
+                                  <SelectItem value="days">Days</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <Button
+                                type="button"
+                                size="sm"
+                                className="h-8 rounded-xl"
+                                onClick={() => {
+                                  const result = updateTown(town.id, toTownPayload(editingTownDraft));
+                                  if (!result.ok) {
+                                    toast.error(result.message ?? "Unable to update town.");
+                                    return;
+                                  }
+                                  toast.success("Town updated.");
+                                  setEditingTownId(null);
+                                  setEditingTownDraft(emptyTownDraft);
+                                }}
+                              >
+                                Save
+                              </Button>
+                            </div>
                           </div>
                         ) : (
                           <>
@@ -284,16 +459,12 @@ export function ServiceLocationsManager() {
                             <Badge variant={town.isActive ? "soft" : "outline"}>
                               {town.isActive ? "Active" : "Inactive"}
                             </Badge>
-                            {town.estimatedDeliveryDays ? (
-                              <span className="text-xs text-[var(--foreground-subtle)]">
-                                {town.estimatedDeliveryDays} day(s)
-                              </span>
-                            ) : null}
-                            {typeof town.deliveryFee === "number" ? (
-                              <span className="text-xs text-[var(--foreground-subtle)]">
-                                KES {town.deliveryFee}
-                              </span>
-                            ) : null}
+                            <span className="text-xs text-[var(--foreground-subtle)]">
+                              {formatEtaRange(town.etaMinValue, town.etaMaxValue, town.etaUnit)}
+                            </span>
+                            <span className="text-xs text-[var(--foreground-subtle)]">
+                              KES {town.deliveryFee ?? 0}
+                            </span>
                           </>
                         )}
                       </div>
@@ -307,12 +478,18 @@ export function ServiceLocationsManager() {
                           onClick={() => {
                             if (editingTownId === town.id) {
                               setEditingTownId(null);
-                              setEditingTownName("");
+                              setEditingTownDraft(emptyTownDraft);
                               return;
                             }
 
                             setEditingTownId(town.id);
-                            setEditingTownName(town.name);
+                            setEditingTownDraft({
+                              name: town.name,
+                              deliveryFee: String(town.deliveryFee ?? ""),
+                              etaMinValue: String(town.etaMinValue ?? ""),
+                              etaMaxValue: String(town.etaMaxValue ?? ""),
+                              etaUnit: town.etaUnit ?? "days",
+                            });
                           }}
                         >
                           <Edit3 className="size-3.5" />
@@ -333,6 +510,18 @@ export function ServiceLocationsManager() {
                           }}
                         >
                           {town.isActive ? "Disable" : "Enable"}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 rounded-full text-[#a11f2f] hover:bg-[#ffe8ec] hover:text-[#a11f2f]"
+                          onClick={() => {
+                            deleteTown(town.id);
+                            toast.success("Town removed.");
+                          }}
+                        >
+                          <Trash2 className="size-3.5" />
                         </Button>
                       </div>
                     </div>

@@ -23,6 +23,9 @@ function mapTownRow(row: ServiceTownRow): ServiceTown {
     countyId: row.county_id,
     name: row.name,
     isActive: row.is_active,
+    etaMinValue: row.eta_min_value,
+    etaMaxValue: row.eta_max_value,
+    etaUnit: row.eta_unit,
     estimatedDeliveryDays: row.estimated_delivery_days,
     deliveryFee: row.delivery_fee,
     createdAt: row.created_at,
@@ -48,7 +51,7 @@ export async function getServiceCoverageFromSupabase() {
         supabase
           .from("service_towns")
           .select(
-            "id,county_id,name,is_active,estimated_delivery_days,delivery_fee,created_at,updated_at",
+            "id,county_id,name,is_active,eta_min_value,eta_max_value,eta_unit,estimated_delivery_days,delivery_fee,created_at,updated_at",
           )
           .order("name", { ascending: true }),
       ]);

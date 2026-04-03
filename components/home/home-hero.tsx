@@ -6,11 +6,20 @@ import { ArrowRight, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { SearchInput } from "@/components/shared/search-input";
-import { homepageBanners } from "@/lib/data/mock-data";
 import { SiteContainer } from "@/components/shared/site-container";
+import { useCommerceStore } from "@/lib/stores/commerce-store";
+import { getActiveBanners } from "@/lib/services/commerce-selectors";
+import { useMemo } from "react";
 
 export function HomeHero() {
-  const primaryBanner = homepageBanners[0];
+  const banners = useCommerceStore((state) => state.banners);
+  const activeBanners = useMemo(() => getActiveBanners(banners), [banners]);
+  const primaryBanner = activeBanners[0];
+  const secondaryBanners = activeBanners.slice(1, 4);
+
+  if (!primaryBanner) {
+    return null;
+  }
 
   return (
     <section className="relative overflow-hidden">
@@ -64,6 +73,22 @@ export function HomeHero() {
             </div>
           </div>
         </motion.div>
+        {secondaryBanners.length ? (
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            {secondaryBanners.map((banner) => (
+              <Link
+                key={banner.id}
+                href={banner.href ?? "/shop"}
+                className="rounded-2xl border border-[var(--border)] bg-white p-4 shadow-[var(--shadow-soft)] transition hover:bg-[var(--brand-50)]"
+              >
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--foreground-subtle)]">
+                  {banner.badge || "Campaign"}
+                </p>
+                <p className="mt-1 text-sm font-semibold text-[var(--foreground)]">{banner.title}</p>
+              </Link>
+            ))}
+          </div>
+        ) : null}
       </SiteContainer>
     </section>
   );

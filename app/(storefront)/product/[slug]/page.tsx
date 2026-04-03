@@ -1,39 +1,56 @@
-import Link from "next/link";
-import { notFound } from "next/navigation";
-import { ChevronRight } from "lucide-react";
+"use client";
 
-import { products } from "@/lib/data/mock-data";
+import Link from "next/link";
+import { useMemo } from "react";
+import { useParams } from "next/navigation";
+import { ChevronRight, SearchX } from "lucide-react";
+
+import { getReviewsForProduct } from "@/lib/data/mock-data";
 import { SiteContainer } from "@/components/shared/site-container";
 import { ProductGallery } from "@/components/product/product-gallery";
 import { ProductPurchasePanel } from "@/components/product/product-purchase-panel";
 import { ProductDetailsTabs } from "@/components/product/product-details-tabs";
 import { RelatedProducts } from "@/components/product/related-products";
-import { getProductPageData } from "@/lib/services/catalog-service";
+import { EmptyState } from "@/components/shared/empty-state";
+import { useCommerceStore } from "@/lib/stores/commerce-store";
+import { getRelatedProducts } from "@/lib/services/commerce-selectors";
 
-interface ProductPageProps {
-  params: Promise<{ slug: string }>;
-}
+export default function ProductPage() {
+  const params = useParams<{ slug: string }>();
+  const products = useCommerceStore((state) => state.products);
 
-export function generateStaticParams() {
-  return products.map((product) => ({ slug: product.slug }));
-}
+  const product = useMemo(
+    () => products.find((item) => item.slug === params.slug && item.isActive !== false),
+    [params.slug, products],
+  );
 
-export default async function ProductPage({ params }: ProductPageProps) {
-  const { slug } = await params;
-  const productData = await getProductPageData(slug);
-
-  if (!productData) {
-    notFound();
+  if (!product) {
+    return (
+      <SiteContainer className="py-6 sm:py-8">
+        <EmptyState
+          icon={SearchX}
+          title="Product unavailable"
+          description="This product is inactive or could not be found."
+          actionLabel="Back to shop"
+          actionHref="/shop"
+        />
+      </SiteContainer>
+    );
   }
 
-  const { product, relatedProducts, reviews } = productData;
+  const relatedProducts = getRelatedProducts(products, product.id, 8);
+  const reviews = getReviewsForProduct(product.id);
 
   return (
     <SiteContainer className="space-y-8 py-6 sm:py-8">
       <nav className="flex items-center gap-1 text-xs text-[var(--foreground-subtle)]">
-        <Link href="/" className="hover:text-[var(--foreground)]">Home</Link>
+        <Link href="/" className="hover:text-[var(--foreground)]">
+          Home
+        </Link>
         <ChevronRight className="size-3.5" />
-        <Link href="/shop" className="hover:text-[var(--foreground)]">Shop</Link>
+        <Link href="/shop" className="hover:text-[var(--foreground)]">
+          Shop
+        </Link>
         <ChevronRight className="size-3.5" />
         <span className="text-[var(--foreground-muted)]">{product.name}</span>
       </nav>

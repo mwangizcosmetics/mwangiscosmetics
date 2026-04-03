@@ -3,7 +3,7 @@
 import { Heart } from "lucide-react";
 import { useMemo } from "react";
 
-import { products } from "@/lib/data/mock-data";
+import { useCommerceStore } from "@/lib/stores/commerce-store";
 import { useWishlistStore } from "@/lib/stores/wishlist-store";
 import { ProductCard } from "@/components/shop/product-card";
 import { SiteContainer } from "@/components/shared/site-container";
@@ -12,13 +12,18 @@ import { EmptyState } from "@/components/shared/empty-state";
 
 export default function WishlistPage() {
   const wishlistItems = useWishlistStore((state) => state.items);
+  const products = useCommerceStore((state) => state.products);
 
   const wishlistProducts = useMemo(
     () =>
       wishlistItems
-        .map((item) => products.find((product) => product.id === item.productId))
+        .map((item) =>
+          products.find(
+            (product) => product.id === item.productId && product.isActive !== false,
+          ),
+        )
         .filter((product): product is (typeof products)[number] => Boolean(product)),
-    [wishlistItems],
+    [products, wishlistItems],
   );
 
   return (

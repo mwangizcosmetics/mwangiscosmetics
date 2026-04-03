@@ -1,48 +1,64 @@
-import { notFound } from "next/navigation";
+"use client";
 
-import { categories as mockCategories } from "@/lib/data/mock-data";
-import { type ProductSort } from "@/lib/services/product-service";
+import { useParams, useSearchParams } from "next/navigation";
+
 import { ProductGrid } from "@/components/shop/product-grid";
 import { ShopToolbar } from "@/components/shop/shop-toolbar";
 import { SiteContainer } from "@/components/shared/site-container";
 import { SectionHeading } from "@/components/shared/section-heading";
-import { getCategoryPageData } from "@/lib/services/catalog-service";
+import { EmptyState } from "@/components/shared/empty-state";
+import { useCommerceCatalog, useShopProducts } from "@/lib/hooks/use-commerce-data";
+import type { ProductSort } from "@/lib/services/commerce-selectors";
+import { SearchX } from "lucide-react";
 
-interface CategoryPageProps {
-  params: Promise<{ slug: string }>;
-  searchParams: Promise<{
-    q?: string;
-    sort?: ProductSort;
-    chip?: string;
-  }>;
-}
+export default function CategoryPage() {
+  const params = useParams<{ slug: string }>();
+  const searchParams = useSearchParams();
+  const { categories } = useCommerceCatalog();
 
-export function generateStaticParams() {
-  return mockCategories.map((category) => ({ slug: category.slug }));
-}
+  const slug = params.slug;
+  const category = categories.find((item) => item.slug === slug);
 
-export default async function CategoryPage({ params, searchParams }: CategoryPageProps) {
-  const [{ slug }, query] = await Promise.all([params, searchParams]);
-
-  const categoryData = await getCategoryPageData(slug, {
-    search: query.q,
-    sort: query.sort,
-    chip: query.chip,
+  const products = useShopProducts({
+    search: searchParams.get("q") ?? undefined,
+    sort: (searchParams.get("sort") as ProductSort | null) ?? undefined,
+    chip: searchParams.get("chip") ?? undefined,
+    category: slug,
   });
 
-  if (!categoryData.category) {
-    notFound();
+  if (!category) {
+    return (
+      <SiteContainer className="py-6 sm:py-8">
+        <EmptyState
+          icon={SearchX}
+          title="Category unavailable"
+          description="This category is inactive or does not exist."
+          actionLabel="Back to shop"
+          actionHref="/shop"
+        />
+      </SiteContainer>
+    );
   }
 
   return (
     <SiteContainer className="space-y-5 py-6 sm:py-8">
       <SectionHeading
         eyebrow="Category"
-        title={categoryData.category.name}
-        description={categoryData.category.description}
+        title={category.name}
+        description={category.description}
       />
-      <ShopToolbar categories={categoryData.categories} />
-      <ProductGrid products={categoryData.products} />
+      <ShopToolbar categories={categories} />
+      {products.length ? (
+        <ProductGrid products={products} />
+      ) : (
+        <EmptyState
+          icon={SearchX}
+          title="No products in this category"
+          description="Try clearing filters or activate more products in this category."
+          actionLabel="Clear filters"
+          actionHref={`/category/${category.slug}`}
+        />
+      )}
     </SiteContainer>
   );
 }

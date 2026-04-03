@@ -14,6 +14,14 @@ interface StoreResult {
   message?: string;
 }
 
+interface TownPayload {
+  name: string;
+  deliveryFee?: number | null;
+  etaMinValue?: number | null;
+  etaMaxValue?: number | null;
+  etaUnit?: "hours" | "days" | null;
+}
+
 interface ServiceLocationStore {
   counties: ServiceCounty[];
   towns: ServiceTown[];
@@ -22,9 +30,11 @@ interface ServiceLocationStore {
   addCounty: (name: string) => StoreResult;
   updateCounty: (countyId: string, name: string) => StoreResult;
   toggleCountyActive: (countyId: string) => void;
-  addTown: (countyId: string, name: string) => StoreResult;
-  updateTown: (townId: string, name: string) => StoreResult;
+  deleteCounty: (countyId: string) => void;
+  addTown: (countyId: string, payload: TownPayload) => StoreResult;
+  updateTown: (townId: string, payload: TownPayload) => StoreResult;
   toggleTownActive: (townId: string) => void;
+  deleteTown: (townId: string) => void;
 }
 
 function createId(prefix: "county" | "town") {
@@ -108,8 +118,13 @@ export const useServiceLocationStore = create<ServiceLocationStore>()(
               : county,
           ),
         })),
-      addTown: (countyId, name) => {
-        const normalizedName = normalizeName(name);
+      deleteCounty: (countyId) =>
+        set((state) => ({
+          counties: state.counties.filter((county) => county.id !== countyId),
+          towns: state.towns.filter((town) => town.countyId !== countyId),
+        })),
+      addTown: (countyId, payload) => {
+        const normalizedName = normalizeName(payload.name);
         if (!normalizedName) {
           return { ok: false, message: "Town or center name is required." };
         }
@@ -132,8 +147,10 @@ export const useServiceLocationStore = create<ServiceLocationStore>()(
           countyId,
           name: normalizedName,
           isActive: true,
-          estimatedDeliveryDays: null,
-          deliveryFee: null,
+          etaMinValue: payload.etaMinValue ?? null,
+          etaMaxValue: payload.etaMaxValue ?? null,
+          etaUnit: payload.etaUnit ?? "days",
+          deliveryFee: payload.deliveryFee ?? null,
           createdAt: now,
           updatedAt: now,
         };
@@ -143,8 +160,8 @@ export const useServiceLocationStore = create<ServiceLocationStore>()(
         }));
         return { ok: true };
       },
-      updateTown: (townId, name) => {
-        const normalizedName = normalizeName(name);
+      updateTown: (townId, payload) => {
+        const normalizedName = normalizeName(payload.name);
         if (!normalizedName) {
           return { ok: false, message: "Town or center name is required." };
         }
@@ -170,7 +187,15 @@ export const useServiceLocationStore = create<ServiceLocationStore>()(
         set((state) => ({
           towns: state.towns.map((candidate) =>
             candidate.id === townId
-              ? { ...candidate, name: normalizedName, updatedAt: new Date().toISOString() }
+              ? {
+                  ...candidate,
+                  name: normalizedName,
+                  etaMinValue: payload.etaMinValue ?? null,
+                  etaMaxValue: payload.etaMaxValue ?? null,
+                  etaUnit: payload.etaUnit ?? "days",
+                  deliveryFee: payload.deliveryFee ?? null,
+                  updatedAt: new Date().toISOString(),
+                }
               : candidate,
           ),
         }));
@@ -183,6 +208,10 @@ export const useServiceLocationStore = create<ServiceLocationStore>()(
               ? { ...town, isActive: !town.isActive, updatedAt: new Date().toISOString() }
               : town,
           ),
+        })),
+      deleteTown: (townId) =>
+        set((state) => ({
+          towns: state.towns.filter((town) => town.id !== townId),
         })),
     }),
     {

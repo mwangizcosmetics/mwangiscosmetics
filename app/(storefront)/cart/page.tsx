@@ -9,13 +9,15 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { CartLineItem } from "@/components/cart/cart-line-item";
 import { CartSummaryCard } from "@/components/cart/cart-summary-card";
 import { useCartStore } from "@/lib/stores/cart-store";
+import { useCommerceStore } from "@/lib/stores/commerce-store";
 import { calculateCartTotals, getDetailedCartItems } from "@/lib/services/cart-service";
 
 export default function CartPage() {
   const items = useCartStore((state) => state.items);
+  const products = useCommerceStore((state) => state.products);
 
-  const detailedItems = useMemo(() => getDetailedCartItems(items), [items]);
-  const totals = useMemo(() => calculateCartTotals(items), [items]);
+  const detailedItems = useMemo(() => getDetailedCartItems(items, products), [items, products]);
+  const totals = useMemo(() => calculateCartTotals(items, products), [items, products]);
 
   return (
     <SiteContainer className="space-y-5 py-6 sm:py-8">

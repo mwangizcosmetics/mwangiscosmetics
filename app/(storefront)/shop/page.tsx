@@ -1,33 +1,37 @@
+"use client";
+
 import { SearchX } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { useMemo } from "react";
 
 import { ShopToolbar } from "@/components/shop/shop-toolbar";
 import { ProductGrid } from "@/components/shop/product-grid";
 import { SectionHeading } from "@/components/shared/section-heading";
 import { SiteContainer } from "@/components/shared/site-container";
 import { EmptyState } from "@/components/shared/empty-state";
-import { type ProductSort } from "@/lib/services/product-service";
-import { getShopProducts, getStoreCategories } from "@/lib/services/catalog-service";
+import { useCommerceCatalog, useShopProducts } from "@/lib/hooks/use-commerce-data";
+import type { ProductSort } from "@/lib/services/commerce-selectors";
 
-interface ShopPageProps {
-  searchParams: Promise<{
-    q?: string;
-    category?: string;
-    sort?: ProductSort;
-    chip?: string;
-  }>;
-}
+export default function ShopPage() {
+  const searchParams = useSearchParams();
+  const { categories } = useCommerceCatalog();
 
-export default async function ShopPage({ searchParams }: ShopPageProps) {
-  const params = await searchParams;
-  const [products, categories] = await Promise.all([
-    getShopProducts({
-      search: params.q,
-      category: params.category,
-      sort: params.sort,
-      chip: params.chip,
+  const params = useMemo(
+    () => ({
+      q: searchParams.get("q") ?? undefined,
+      category: searchParams.get("category") ?? undefined,
+      sort: (searchParams.get("sort") as ProductSort | null) ?? undefined,
+      chip: searchParams.get("chip") ?? undefined,
     }),
-    getStoreCategories(),
-  ]);
+    [searchParams],
+  );
+
+  const products = useShopProducts({
+    search: params.q,
+    category: params.category,
+    sort: params.sort,
+    chip: params.chip,
+  });
 
   const hasFilters = Boolean(params.q || params.category || params.chip);
 
@@ -48,7 +52,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
           description={
             hasFilters
               ? "Adjust your search or filters to discover more beauty products."
-              : "Product catalog is currently empty. Seed products to begin browsing."
+              : "Product catalog is currently empty. Add active products in admin to begin browsing."
           }
           actionLabel="Clear filters"
           actionHref="/shop"
