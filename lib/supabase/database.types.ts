@@ -263,15 +263,17 @@ export interface Database {
         Row: {
           id: string;
           user_id: string;
+          label: string | null;
           full_name: string;
           phone: string;
-          email: string | null;
-          line1: string;
-          line2: string | null;
-          city: string;
-          region: string;
-          postal_code: string | null;
-          country: string;
+          county_id: string | null;
+          county_name: string;
+          town_center_id: string | null;
+          town_center_name: string;
+          street_address: string;
+          building_or_house: string | null;
+          landmark: string | null;
+          is_primary: boolean;
           is_default: boolean;
           created_at: string;
           updated_at: string;
@@ -279,29 +281,33 @@ export interface Database {
         Insert: {
           id?: string;
           user_id: string;
+          label?: string | null;
           full_name: string;
           phone: string;
-          email?: string | null;
-          line1: string;
-          line2?: string | null;
-          city: string;
-          region: string;
-          postal_code?: string | null;
-          country: string;
+          county_id?: string | null;
+          county_name: string;
+          town_center_id?: string | null;
+          town_center_name: string;
+          street_address: string;
+          building_or_house?: string | null;
+          landmark?: string | null;
+          is_primary?: boolean;
           is_default?: boolean;
           created_at?: string;
           updated_at?: string;
         };
         Update: {
+          label?: string | null;
           full_name?: string;
           phone?: string;
-          email?: string | null;
-          line1?: string;
-          line2?: string | null;
-          city?: string;
-          region?: string;
-          postal_code?: string | null;
-          country?: string;
+          county_id?: string | null;
+          county_name?: string;
+          town_center_id?: string | null;
+          town_center_name?: string;
+          street_address?: string;
+          building_or_house?: string | null;
+          landmark?: string | null;
+          is_primary?: boolean;
           is_default?: boolean;
           updated_at?: string;
         };
@@ -456,6 +462,59 @@ export interface Database {
           active?: boolean;
           starts_at?: string | null;
           ends_at?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      service_counties: {
+        Row: {
+          id: string;
+          name: string;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          name?: string;
+          is_active?: boolean;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      service_towns: {
+        Row: {
+          id: string;
+          county_id: string;
+          name: string;
+          is_active: boolean;
+          estimated_delivery_days: number | null;
+          delivery_fee: number | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          county_id: string;
+          name: string;
+          is_active?: boolean;
+          estimated_delivery_days?: number | null;
+          delivery_fee?: number | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          county_id?: string;
+          name?: string;
+          is_active?: boolean;
+          estimated_delivery_days?: number | null;
+          delivery_fee?: number | null;
           updated_at?: string;
         };
         Relationships: [];

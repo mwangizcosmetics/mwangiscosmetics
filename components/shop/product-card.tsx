@@ -46,12 +46,15 @@ export function ProductCard({ product, compact = false, className }: ProductCard
       whileHover={{ y: -4 }}
       transition={{ duration: 0.2, ease: "easeOut" }}
       className={cn(
-        "group overflow-hidden rounded-3xl border border-[var(--border)] bg-white shadow-[var(--shadow-soft)] transition",
+        "group flex h-full flex-col overflow-hidden rounded-3xl border border-[var(--border)] bg-white shadow-[var(--shadow-soft)] transition",
         className,
       )}
     >
       <div className="relative">
-        <Link href={`/product/${product.slug}`} className="relative block aspect-[4/5] overflow-hidden bg-[var(--brand-50)]">
+        <Link
+          href={`/product/${product.slug}`}
+          className="relative block aspect-[4/5] overflow-hidden bg-[var(--brand-50)]"
+        >
           <Image
             src={image.url}
             alt={image.alt}
@@ -73,24 +76,29 @@ export function ProductCard({ product, compact = false, className }: ProductCard
           <Heart className={cn("size-4", hasInWishlist ? "fill-[var(--brand-900)] text-[var(--brand-900)]" : "")} />
         </button>
       </div>
-      <div className="space-y-3 p-3 sm:p-4">
-        <div className="space-y-1">
+      <div className="flex flex-1 flex-col gap-3 p-3 sm:p-4">
+        <div className="min-h-[5.5rem] space-y-1">
           <p className="text-[11px] font-medium uppercase tracking-wide text-[var(--foreground-subtle)]">{product.brand}</p>
-          <Link href={`/product/${product.slug}`} className="line-clamp-2 text-sm font-semibold text-[var(--foreground)] transition hover:text-[var(--brand-800)] sm:text-base">
+          <Link
+            href={`/product/${product.slug}`}
+            className="line-clamp-2 text-sm font-semibold text-[var(--foreground)] transition hover:text-[var(--brand-800)] sm:text-base"
+          >
             {product.name}
           </Link>
           <p className="line-clamp-2 text-xs text-[var(--foreground-muted)] sm:text-sm">{product.shortDescription}</p>
         </div>
         <RatingStars rating={product.rating} reviewCount={product.ratingCount} />
-        <div className="flex items-center justify-between gap-2">
-          <div className="space-y-1">
-            <PriceDisplay price={product.price} compareAtPrice={product.compareAtPrice} currency={product.currency} />
-            <DiscountBadge price={product.price} compareAtPrice={product.compareAtPrice} />
+        <div className="mt-auto space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="space-y-1">
+              <PriceDisplay price={product.price} compareAtPrice={product.compareAtPrice} currency={product.currency} />
+              <DiscountBadge price={product.price} compareAtPrice={product.compareAtPrice} />
+            </div>
           </div>
           {!compact ? (
-            <Button size="sm" className="rounded-xl" onClick={handleAddToCart}>
+            <Button size="sm" className="h-10 w-full rounded-xl" onClick={handleAddToCart}>
               <ShoppingBag className="size-4" />
-              Add
+              Add to Cart
             </Button>
           ) : null}
         </div>

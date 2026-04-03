@@ -3,6 +3,7 @@ import {
   Heart,
   Home,
   LayoutGrid,
+  MapPin,
   PackageSearch,
   ShoppingBag,
   Sparkles,
@@ -31,6 +32,7 @@ export const adminSidebarNav = [
   { label: "Categories", href: "/admin/categories", icon: LayoutGrid },
   { label: "Customers", href: "/admin/customers", icon: UserRound },
   { label: "Coupons", href: "/admin/coupons", icon: Gift },
+  { label: "Service Locations", href: "/admin/service-locations", icon: MapPin },
   { label: "Banners", href: "/admin/banners", icon: PackageSearch },
   { label: "Reviews", href: "/admin/reviews", icon: Heart },
 ];

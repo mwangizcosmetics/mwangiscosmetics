@@ -21,6 +21,19 @@ function isAdminUser(
   );
 }
 
+async function hasAdminProfile(
+  supabase: ReturnType<typeof createServerClient<Database>>,
+  userId: string,
+) {
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .maybeSingle();
+
+  return profile?.role === "admin";
+}
+
 function getLoginRedirect(request: NextRequest) {
   const redirectUrl = request.nextUrl.clone();
   redirectUrl.pathname = "/auth/login";
@@ -85,7 +98,10 @@ export async function proxy(request: NextRequest) {
   if (
     requiresAdmin &&
     user &&
-    !isAdminUser(user.app_metadata, user.user_metadata)
+    !(
+      isAdminUser(user.app_metadata, user.user_metadata) ||
+      (await hasAdminProfile(supabase, user.id))
+    )
   ) {
     const deniedUrl = request.nextUrl.clone();
     deniedUrl.pathname = "/account";

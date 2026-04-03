@@ -17,6 +17,25 @@ export interface Category {
   featured?: boolean;
 }
 
+export interface ServiceCounty {
+  id: string;
+  name: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ServiceTown {
+  id: string;
+  countyId: string;
+  name: string;
+  isActive: boolean;
+  estimatedDeliveryDays?: number | null;
+  deliveryFee?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Review {
   id: string;
   productId: string;
@@ -76,15 +95,21 @@ export type OrderStatus =
   | "refunded";
 
 export interface Address {
+  id: string;
+  userId: string;
+  label?: string;
   fullName: string;
   phone: string;
-  email?: string;
-  line1: string;
-  line2?: string;
-  city: string;
-  region: string;
-  postalCode?: string;
-  country: string;
+  countyId: string;
+  county: string;
+  townCenterId: string;
+  townCenter: string;
+  streetAddress: string;
+  buildingOrHouse?: string;
+  landmark?: string;
+  isPrimary: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface OrderItem {

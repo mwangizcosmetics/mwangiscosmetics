@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
 import { signInWithEmail } from "@/lib/supabase/auth";
+import { getSupabaseBrowserClient } from "@/lib/supabase/browser-client";
 import { loginSchema, type LoginFormValues } from "@/lib/validators/auth";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -43,7 +44,37 @@ export function LoginForm() {
 
     toast.success("Welcome back to MWANGIZ Cosmetics");
     const nextPath = searchParams.get("next");
-    router.push(nextPath || "/account");
+    let fallbackPath = "/account";
+
+    if (!nextPath) {
+      const supabase = getSupabaseBrowserClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user) {
+        const isAdminFromMetadata =
+          user.app_metadata?.role === "admin" ||
+          user.user_metadata?.role === "admin" ||
+          user.user_metadata?.is_admin === true;
+
+        if (isAdminFromMetadata) {
+          fallbackPath = "/admin";
+        } else {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("role")
+            .eq("id", user.id)
+            .maybeSingle();
+
+          if (profile?.role === "admin") {
+            fallbackPath = "/admin";
+          }
+        }
+      }
+    }
+
+    router.push(nextPath || fallbackPath);
   };
 
   return (
