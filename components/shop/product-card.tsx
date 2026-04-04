@@ -53,7 +53,7 @@ export function ProductCard({ product, compact = false, className }: ProductCard
       <div className="relative">
         <Link
           href={`/product/${product.slug}`}
-          className="relative block aspect-[3/4] overflow-hidden bg-[var(--brand-50)]"
+          className="relative block aspect-square overflow-hidden bg-[var(--brand-50)]"
         >
           <Image
             src={image.url}
@@ -63,7 +63,7 @@ export function ProductCard({ product, compact = false, className }: ProductCard
             className="object-cover transition duration-500 group-hover:scale-105"
           />
         </Link>
-        <div className="absolute left-2 top-2 flex flex-wrap gap-1">
+        <div className="absolute left-1.5 top-1.5 flex flex-wrap gap-1">
           {product.isNew ? <Badge variant="soft">New</Badge> : null}
           {product.isBestSeller ? <Badge variant="default">Best Seller</Badge> : null}
         </div>
@@ -76,28 +76,32 @@ export function ProductCard({ product, compact = false, className }: ProductCard
           <Heart className={cn("size-4", hasInWishlist ? "fill-[var(--brand-900)] text-[var(--brand-900)]" : "")} />
         </button>
       </div>
-      <div className="flex flex-1 flex-col gap-2 p-2.5 sm:p-3">
-        <div className="min-h-[4.2rem] space-y-0.5">
-          <p className="text-[10px] font-medium uppercase tracking-wide text-[var(--foreground-subtle)]">{product.brand}</p>
+      <div className="flex flex-1 flex-col gap-1.5 p-2">
+        <div className="space-y-0.5">
+          {!compact ? (
+            <p className="text-[9px] font-medium uppercase tracking-wide text-[var(--foreground-subtle)]">{product.brand}</p>
+          ) : null}
           <Link
             href={`/product/${product.slug}`}
-            className="line-clamp-2 text-xs font-semibold text-[var(--foreground)] transition hover:text-[var(--brand-800)] sm:text-sm"
+            className="line-clamp-1 text-[11px] font-semibold text-[var(--foreground)] transition hover:text-[var(--brand-800)] sm:text-xs"
           >
             {product.name}
           </Link>
-          <p className="line-clamp-2 text-[11px] text-[var(--foreground-muted)] sm:text-xs">{product.shortDescription}</p>
+          {!compact ? (
+            <p className="line-clamp-1 text-[10px] text-[var(--foreground-muted)]">{product.shortDescription}</p>
+          ) : null}
         </div>
-        <RatingStars rating={product.rating} reviewCount={product.ratingCount} />
-        <div className="mt-auto space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <div className="space-y-1">
+        {!compact ? <RatingStars rating={product.rating} reviewCount={product.ratingCount} /> : null}
+        <div className="mt-auto space-y-1.5">
+          <div className="flex items-center justify-between gap-1.5">
+            <div className="space-y-0.5">
               <PriceDisplay price={product.price} compareAtPrice={product.compareAtPrice} currency={product.currency} />
               <DiscountBadge price={product.price} compareAtPrice={product.compareAtPrice} />
             </div>
           </div>
           {!compact ? (
-            <Button size="sm" className="h-8 w-full rounded-lg px-2 text-[11px]" onClick={handleAddToCart}>
-              <ShoppingBag className="size-4" />
+            <Button size="sm" className="h-7 w-full rounded-lg px-2 text-[10px]" onClick={handleAddToCart}>
+              <ShoppingBag className="size-3.5" />
               Add to Cart
             </Button>
           ) : null}
