@@ -2,36 +2,16 @@ import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
 import type { Database } from "@/lib/supabase/database.types";
+import {
+  getRoleDefaultPath,
+  hasPermission,
+  normalizeRole,
+} from "@/lib/services/rbac";
 
 function hasSupabaseEnv() {
   return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   );
-}
-
-function isAdminUser(
-  appMetadata: Record<string, unknown> | undefined,
-  userMetadata: Record<string, unknown> | undefined,
-) {
-  return (
-    appMetadata?.role === "admin" ||
-    userMetadata?.role === "admin" ||
-    userMetadata?.is_admin === true
-  );
-}
-
-async function hasAdminProfile(
-  supabase: ReturnType<typeof createServerClient<Database>>,
-  userId: string,
-) {
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", userId)
-    .maybeSingle();
-
-  return profile?.role === "admin";
 }
 
 function getLoginRedirect(request: NextRequest) {
@@ -42,6 +22,26 @@ function getLoginRedirect(request: NextRequest) {
   return redirectUrl;
 }
 
+function getDeniedRedirect(request: NextRequest, fallbackPath: string) {
+  const deniedUrl = request.nextUrl.clone();
+  deniedUrl.pathname = fallbackPath;
+  deniedUrl.searchParams.set("denied", "role");
+  return deniedUrl;
+}
+
+const superAdminOnlyAdminPaths = [
+  "/admin/payment-logs",
+  "/admin/pending-payments",
+  "/admin/coupons",
+  "/admin/discounts",
+  "/admin/customers",
+  "/admin/staff",
+];
+
+function requiresSuperAdmin(pathname: string) {
+  return superAdminOnlyAdminPaths.some((path) => pathname.startsWith(path));
+}
+
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const requiresAuth =
@@ -49,8 +49,9 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/orders") ||
     pathname.startsWith("/checkout");
   const requiresAdmin = pathname.startsWith("/admin");
+  const requiresBeba = pathname.startsWith("/beba");
 
-  if (!requiresAuth && !requiresAdmin) {
+  if (!requiresAuth && !requiresAdmin && !requiresBeba) {
     return NextResponse.next();
   }
 
@@ -91,27 +92,51 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user && (requiresAuth || requiresAdmin)) {
+  if (!user && (requiresAuth || requiresAdmin || requiresBeba)) {
     return NextResponse.redirect(getLoginRedirect(request));
   }
 
-  if (
-    requiresAdmin &&
-    user &&
-    !(
-      isAdminUser(user.app_metadata, user.user_metadata) ||
-      (await hasAdminProfile(supabase, user.id))
-    )
-  ) {
-    const deniedUrl = request.nextUrl.clone();
-    deniedUrl.pathname = "/account";
-    deniedUrl.searchParams.set("denied", "admin");
-    return NextResponse.redirect(deniedUrl);
+  if (!user) {
+    return response;
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role,is_active")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const role = normalizeRole(profile?.role ?? user.app_metadata?.role?.toString() ?? null);
+  const isActive = profile?.is_active ?? true;
+  if (!isActive) {
+    const blocked = request.nextUrl.clone();
+    blocked.pathname = "/account";
+    blocked.searchParams.set("denied", "inactive");
+    return NextResponse.redirect(blocked);
+  }
+
+  if (requiresAdmin) {
+    if (!hasPermission(role, "admin:access")) {
+      return NextResponse.redirect(getDeniedRedirect(request, getRoleDefaultPath(role)));
+    }
+    if (requiresSuperAdmin(pathname) && !hasPermission(role, "admin:staff_management")) {
+      return NextResponse.redirect(getDeniedRedirect(request, "/admin"));
+    }
+  }
+
+  if (requiresBeba && !hasPermission(role, "beba:access")) {
+    return NextResponse.redirect(getDeniedRedirect(request, getRoleDefaultPath(role)));
   }
 
   return response;
 }
 
 export const config = {
-  matcher: ["/account/:path*", "/orders/:path*", "/checkout/:path*", "/admin/:path*"],
+  matcher: [
+    "/account/:path*",
+    "/orders/:path*",
+    "/checkout/:path*",
+    "/admin/:path*",
+    "/beba/:path*",
+  ],
 };

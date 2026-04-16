@@ -78,6 +78,7 @@ export function CheckoutAddressForm({
     defaultValues: {
       selectedAddressId: "",
       fullName: "",
+      email: "",
       phone: "",
       countyId: "",
       townCenterId: "",
@@ -142,6 +143,7 @@ export function CheckoutAddressForm({
 
     setValue("selectedAddressId", selectedSavedAddress.id, { shouldValidate: true });
     setValue("fullName", selectedSavedAddress.fullName, { shouldValidate: true });
+    setValue("email", selectedSavedAddress.email ?? "");
     setValue("phone", selectedSavedAddress.phone, { shouldValidate: true });
     setValue("countyId", selectedSavedAddress.countyId, { shouldValidate: true });
     setValue("townCenterId", selectedSavedAddress.townCenterId, {
@@ -202,6 +204,7 @@ export function CheckoutAddressForm({
         values: {
           label: undefined,
           fullName: values.fullName,
+          email: values.email || undefined,
           phone: values.phone,
           countyId: values.countyId,
           townCenterId: values.townCenterId,
@@ -348,6 +351,14 @@ export function CheckoutAddressForm({
             ) : null}
           </div>
 
+          <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor="email">Email (optional)</Label>
+            <Input id="email" placeholder="you@example.com" {...register("email")} />
+            {errors.email ? (
+              <p className="text-xs text-[#a11f2f]">{errors.email.message}</p>
+            ) : null}
+          </div>
+
           <div className="space-y-2">
             <Label>County</Label>
             <Controller
@@ -447,6 +458,9 @@ export function CheckoutAddressForm({
           <p className="mt-2 text-sm text-[var(--foreground-muted)]">
             {selectedSavedAddress.fullName} • {selectedSavedAddress.phone}
           </p>
+          {selectedSavedAddress.email ? (
+            <p className="text-sm text-[var(--foreground-muted)]">{selectedSavedAddress.email}</p>
+          ) : null}
           <p className="text-sm text-[var(--foreground-muted)]">
             {selectedSavedAddress.streetAddress}
           </p>

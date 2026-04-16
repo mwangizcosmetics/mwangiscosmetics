@@ -4,10 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { adminSidebarNav } from "@/lib/constants/navigation";
+import { hasPermission, type NormalizedRole } from "@/lib/services/rbac";
 import { cn } from "@/lib/utils/cn";
 
-export function AdminSidebar() {
+export function AdminSidebar({ role }: { role: NormalizedRole }) {
   const pathname = usePathname();
+  const visibleNavItems = adminSidebarNav.filter((item) =>
+    hasPermission(role, item.requiredPermission),
+  );
 
   return (
     <aside className="hidden w-72 shrink-0 border-r border-[var(--border)] bg-[var(--surface)] p-5 lg:block">
@@ -17,7 +21,7 @@ export function AdminSidebar() {
       </Link>
       <nav>
         <ul className="space-y-1">
-          {adminSidebarNav.map((item) => {
+          {visibleNavItems.map((item) => {
             const active = pathname === item.href;
             const Icon = item.icon;
             return (

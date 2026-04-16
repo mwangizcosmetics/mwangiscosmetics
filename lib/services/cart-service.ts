@@ -1,31 +1,24 @@
-import type { CartItem, Product } from "@/lib/types/ecommerce";
+import type { CartItem, DiscountRule, Product } from "@/lib/types/ecommerce";
+import { getPricedCartItems } from "@/lib/services/pricing-service";
 
-export function getDetailedCartItems(items: CartItem[], products: Product[]) {
-  return items
-    .map((item) => {
-      const product = products.find((candidate) => candidate.id === item.productId);
-      if (!product) {
-        return null;
-      }
-
-      return {
-        ...item,
-        product,
-        lineTotal: product.price * item.quantity,
-      };
-    })
-    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+export function getDetailedCartItems(
+  items: CartItem[],
+  products: Product[],
+  discountRules: DiscountRule[] = [],
+) {
+  return getPricedCartItems(items, products, discountRules);
 }
 
 export function calculateCartTotals(
   items: CartItem[],
   products: Product[],
+  discountRules: DiscountRule[] = [],
   options?: {
     shippingFee?: number;
     discountAmount?: number;
   },
 ) {
-  const detailedItems = getDetailedCartItems(items, products);
+  const detailedItems = getDetailedCartItems(items, products, discountRules);
   const subtotal = detailedItems.reduce((sum, item) => sum + item.lineTotal, 0);
   const discount = options?.discountAmount ?? 0;
   const shipping =

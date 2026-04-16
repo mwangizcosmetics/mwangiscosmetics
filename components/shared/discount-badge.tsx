@@ -3,14 +3,18 @@ import { Badge } from "@/components/ui/badge";
 interface DiscountBadgeProps {
   price: number;
   compareAtPrice?: number;
+  discountPercent?: number;
 }
 
-export function DiscountBadge({ price, compareAtPrice }: DiscountBadgeProps) {
-  if (!compareAtPrice || compareAtPrice <= price) {
-    return null;
-  }
+export function DiscountBadge({ price, compareAtPrice, discountPercent }: DiscountBadgeProps) {
+  const percentage =
+    typeof discountPercent === "number" && discountPercent > 0
+      ? Math.round(discountPercent)
+      : compareAtPrice && compareAtPrice > price
+        ? Math.round(((compareAtPrice - price) / compareAtPrice) * 100)
+        : 0;
 
-  const percentage = Math.round(((compareAtPrice - price) / compareAtPrice) * 100);
+  if (!percentage) return null;
 
   return <Badge variant="soft">Save {percentage}%</Badge>;
 }

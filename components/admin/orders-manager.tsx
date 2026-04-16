@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Search } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -20,19 +20,23 @@ import type { OrderStatus } from "@/lib/types/ecommerce";
 import { formatCurrency, formatShortDate } from "@/lib/utils/format";
 
 const operationalStatuses: OrderStatus[] = [
+  "pending_payment",
+  "paid",
   "confirmed",
-  "preparing",
-  "left_shop",
+  "ready_for_dispatch",
   "in_transit",
-  "out_for_delivery",
+  "delivery_failed",
+  "returned",
   "delivered",
   "cancelled",
+  "failed_payment",
 ];
 
 export function OrdersManager() {
   const orders = useCommerceStore((state) => state.orders);
   const hasHydrated = useCommerceStore((state) => state.hasHydrated);
   const updateOrderStatus = useCommerceStore((state) => state.updateOrderStatus);
+  const confirmOrderPayment = useCommerceStore((state) => state.confirmOrderPayment);
 
   const [searchValue, setSearchValue] = useState("");
 
@@ -63,7 +67,7 @@ export function OrdersManager() {
       <div>
         <h2 className="text-lg font-semibold text-[var(--foreground)]">Order Management</h2>
         <p className="text-sm text-[var(--foreground-muted)]">
-          Update delivery progression and customer-facing order statuses.
+          Confirm payments and manage core order states. Dispatch and delivery flow now runs from Delivery Ops.
         </p>
       </div>
       <div className="relative">
@@ -86,7 +90,11 @@ export function OrdersManager() {
               <div>
                 <p className="text-sm font-semibold text-[var(--foreground)]">#{order.orderNumber}</p>
                 <p className="text-xs text-[var(--foreground-subtle)]">
-                  {formatShortDate(order.placedAt)} • {formatCurrency(order.total, order.currency)}
+                  {formatShortDate(order.placedAt)} - {formatCurrency(order.total, order.currency)}
+                </p>
+                <p className="text-xs text-[var(--foreground-subtle)]">
+                  Payment: {order.paymentStatus ?? "pending"}
+                  {order.paymentReference ? ` (${order.paymentReference})` : ""}
                 </p>
               </div>
               <OrderStatusPill status={order.status} />
@@ -95,8 +103,25 @@ export function OrdersManager() {
               <Select
                 value={order.status}
                 onValueChange={(value) => {
-                  updateOrderStatus(order.id, value as OrderStatus);
-                  toast.success(`Order marked as ${orderStatusDisplay[value as OrderStatus]}.`);
+                  const nextStatus = value as OrderStatus;
+                  if (nextStatus === "paid") {
+                    const paymentResult = confirmOrderPayment(order.id, {
+                      paymentReference: `ADMIN-${order.orderNumber}`,
+                    });
+                    if (!paymentResult.ok) {
+                      toast.error(paymentResult.message ?? "Unable to confirm payment.");
+                      return;
+                    }
+                    toast.success("Payment confirmed and stock deducted.");
+                    return;
+                  }
+
+                  const result = updateOrderStatus(order.id, nextStatus);
+                  if (!result.ok) {
+                    toast.error("Order status requires payment confirmation first.");
+                    return;
+                  }
+                  toast.success(`Order marked as ${orderStatusDisplay[nextStatus]}.`);
                 }}
               >
                 <SelectTrigger className="h-9 w-56 rounded-xl">
@@ -110,24 +135,24 @@ export function OrdersManager() {
                   ))}
                 </SelectContent>
               </Select>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-9 rounded-xl"
-                onClick={() => {
-                  if (order.status === "left_shop") {
-                    updateOrderStatus(order.id, "in_transit");
-                    toast.success("Suggested progression applied: In Transit.");
-                  } else if (order.status === "in_transit") {
-                    updateOrderStatus(order.id, "out_for_delivery");
-                    toast.success("Suggested progression applied: Out for Delivery.");
-                  } else {
-                    toast.message("No suggested auto-step for this status.");
-                  }
-                }}
-              >
-                Smart Next Step
-              </Button>
+              {(order.status === "pending_payment" || order.paymentStatus !== "success") ? (
+                <Button
+                  size="sm"
+                  className="h-9 rounded-xl"
+                  onClick={() => {
+                    const result = confirmOrderPayment(order.id, {
+                      paymentReference: `ADMIN-${order.orderNumber}`,
+                    });
+                    if (!result.ok) {
+                      toast.error(result.message ?? "Unable to confirm payment.");
+                      return;
+                    }
+                    toast.success("Payment confirmed and stock deducted.");
+                  }}
+                >
+                  Mark as Paid + Deduct Stock
+                </Button>
+              ) : null}
             </div>
           </article>
         ))}

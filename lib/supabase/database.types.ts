@@ -17,6 +17,7 @@ export interface Database {
           phone: string | null;
           avatar_url: string | null;
           role: Database["public"]["Enums"]["user_role"];
+          is_active: boolean;
           loyalty_tier: string;
           created_at: string;
           updated_at: string;
@@ -28,6 +29,7 @@ export interface Database {
           phone?: string | null;
           avatar_url?: string | null;
           role?: Database["public"]["Enums"]["user_role"];
+          is_active?: boolean;
           loyalty_tier?: string;
           created_at?: string;
           updated_at?: string;
@@ -38,6 +40,7 @@ export interface Database {
           phone?: string | null;
           avatar_url?: string | null;
           role?: Database["public"]["Enums"]["user_role"];
+          is_active?: boolean;
           loyalty_tier?: string;
           updated_at?: string;
         };
@@ -326,7 +329,26 @@ export interface Database {
           total: number;
           currency: Database["public"]["Enums"]["currency_code"];
           shipping_address: Json;
+          delivery_snapshot: Json | null;
           payment_method: string;
+          payment_status: "pending" | "success" | "failed" | "refunded";
+          payment_reference: string | null;
+          inventory_committed_at: string | null;
+          follow_up_status: "new" | "contacted" | "archived" | "dismissed";
+          follow_up_notes: string | null;
+          contacted_at: string | null;
+          recovery_archived: boolean;
+          retry_count: number;
+          last_payment_attempt_at: string | null;
+          payment_init_error: string | null;
+          delivery_agent_id: string | null;
+          ready_for_dispatch_at: string | null;
+          in_transit_at: string | null;
+          delivered_at: string | null;
+          delivery_failed_at: string | null;
+          returned_at: string | null;
+          dispatch_note: string | null;
+          delivery_note: string | null;
           placed_at: string;
           estimated_delivery: string | null;
           created_at: string;
@@ -344,7 +366,26 @@ export interface Database {
           total: number;
           currency?: Database["public"]["Enums"]["currency_code"];
           shipping_address: Json;
+          delivery_snapshot?: Json | null;
           payment_method: string;
+          payment_status?: "pending" | "success" | "failed" | "refunded";
+          payment_reference?: string | null;
+          inventory_committed_at?: string | null;
+          follow_up_status?: "new" | "contacted" | "archived" | "dismissed";
+          follow_up_notes?: string | null;
+          contacted_at?: string | null;
+          recovery_archived?: boolean;
+          retry_count?: number;
+          last_payment_attempt_at?: string | null;
+          payment_init_error?: string | null;
+          delivery_agent_id?: string | null;
+          ready_for_dispatch_at?: string | null;
+          in_transit_at?: string | null;
+          delivered_at?: string | null;
+          delivery_failed_at?: string | null;
+          returned_at?: string | null;
+          dispatch_note?: string | null;
+          delivery_note?: string | null;
           placed_at?: string;
           estimated_delivery?: string | null;
           created_at?: string;
@@ -356,6 +397,25 @@ export interface Database {
           shipping?: number;
           tax?: number;
           total?: number;
+          delivery_snapshot?: Json | null;
+          payment_status?: "pending" | "success" | "failed" | "refunded";
+          payment_reference?: string | null;
+          inventory_committed_at?: string | null;
+          follow_up_status?: "new" | "contacted" | "archived" | "dismissed";
+          follow_up_notes?: string | null;
+          contacted_at?: string | null;
+          recovery_archived?: boolean;
+          retry_count?: number;
+          last_payment_attempt_at?: string | null;
+          payment_init_error?: string | null;
+          delivery_agent_id?: string | null;
+          ready_for_dispatch_at?: string | null;
+          in_transit_at?: string | null;
+          delivered_at?: string | null;
+          delivery_failed_at?: string | null;
+          returned_at?: string | null;
+          dispatch_note?: string | null;
+          delivery_note?: string | null;
           estimated_delivery?: string | null;
           updated_at?: string;
         };
@@ -384,6 +444,286 @@ export interface Database {
           quantity?: number;
           unit_price?: number;
           product_snapshot?: Json;
+        };
+        Relationships: [];
+      };
+      refunds: {
+        Row: {
+          id: string;
+          order_id: string;
+          user_id: string;
+          reason: string;
+          note: string | null;
+          status: "requested" | "under_review" | "approved" | "declined" | "refunded";
+          admin_note: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          order_id: string;
+          user_id: string;
+          reason: string;
+          note?: string | null;
+          status: "requested" | "under_review" | "approved" | "declined" | "refunded";
+          admin_note?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          reason?: string;
+          note?: string | null;
+          status?: "requested" | "under_review" | "approved" | "declined" | "refunded";
+          admin_note?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      order_events: {
+        Row: {
+          id: string;
+          order_id: string;
+          event_type: string;
+          message: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          order_id: string;
+          event_type: string;
+          message: string;
+          created_at?: string;
+        };
+        Update: {
+          event_type?: string;
+          message?: string;
+        };
+        Relationships: [];
+      };
+      payments: {
+        Row: {
+          id: string;
+          order_id: string;
+          user_id: string;
+          method: "mpesa" | "card" | "cash";
+          provider: string;
+          status:
+            | "initiated"
+            | "pending"
+            | "success"
+            | "failed"
+            | "cancelled"
+            | "timed_out"
+            | "init_failed";
+          amount: number;
+          currency: Database["public"]["Enums"]["currency_code"];
+          phone: string | null;
+          checkout_request_id: string | null;
+          merchant_request_id: string | null;
+          provider_reference: string | null;
+          raw_response: Json | null;
+          error_message: string | null;
+          created_at: string;
+          updated_at: string;
+          confirmed_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          order_id: string;
+          user_id: string;
+          method: "mpesa" | "card" | "cash";
+          provider: string;
+          status:
+            | "initiated"
+            | "pending"
+            | "success"
+            | "failed"
+            | "cancelled"
+            | "timed_out"
+            | "init_failed";
+          amount: number;
+          currency?: Database["public"]["Enums"]["currency_code"];
+          phone?: string | null;
+          checkout_request_id?: string | null;
+          merchant_request_id?: string | null;
+          provider_reference?: string | null;
+          raw_response?: Json | null;
+          error_message?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          confirmed_at?: string | null;
+        };
+        Update: {
+          method?: "mpesa" | "card" | "cash";
+          provider?: string;
+          status?:
+            | "initiated"
+            | "pending"
+            | "success"
+            | "failed"
+            | "cancelled"
+            | "timed_out"
+            | "init_failed";
+          amount?: number;
+          currency?: Database["public"]["Enums"]["currency_code"];
+          phone?: string | null;
+          checkout_request_id?: string | null;
+          merchant_request_id?: string | null;
+          provider_reference?: string | null;
+          raw_response?: Json | null;
+          error_message?: string | null;
+          updated_at?: string;
+          confirmed_at?: string | null;
+        };
+        Relationships: [];
+      };
+      payment_callback_logs: {
+        Row: {
+          id: string;
+          provider: string;
+          checkout_request_id: string | null;
+          merchant_request_id: string | null;
+          mpesa_receipt_number: string | null;
+          result_code: number | null;
+          result_description: string | null;
+          idempotency_key: string;
+          processing_status:
+            | "received"
+            | "duplicate"
+            | "invalid_payload"
+            | "rejected"
+            | "payment_not_found"
+            | "processed_success"
+            | "processed_failed";
+          security_valid: boolean;
+          suspicious: boolean;
+          rejection_reason: string | null;
+          payload: Json;
+          payment_id: string | null;
+          order_id: string | null;
+          created_at: string;
+          processed_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          provider?: string;
+          checkout_request_id?: string | null;
+          merchant_request_id?: string | null;
+          mpesa_receipt_number?: string | null;
+          result_code?: number | null;
+          result_description?: string | null;
+          idempotency_key: string;
+          processing_status?:
+            | "received"
+            | "duplicate"
+            | "invalid_payload"
+            | "rejected"
+            | "payment_not_found"
+            | "processed_success"
+            | "processed_failed";
+          security_valid?: boolean;
+          suspicious?: boolean;
+          rejection_reason?: string | null;
+          payload: Json;
+          payment_id?: string | null;
+          order_id?: string | null;
+          created_at?: string;
+          processed_at?: string | null;
+        };
+        Update: {
+          provider?: string;
+          checkout_request_id?: string | null;
+          merchant_request_id?: string | null;
+          mpesa_receipt_number?: string | null;
+          result_code?: number | null;
+          result_description?: string | null;
+          idempotency_key?: string;
+          processing_status?:
+            | "received"
+            | "duplicate"
+            | "invalid_payload"
+            | "rejected"
+            | "payment_not_found"
+            | "processed_success"
+            | "processed_failed";
+          security_valid?: boolean;
+          suspicious?: boolean;
+          rejection_reason?: string | null;
+          payload?: Json;
+          payment_id?: string | null;
+          order_id?: string | null;
+          processed_at?: string | null;
+        };
+        Relationships: [];
+      };
+      discount_rules: {
+        Row: {
+          id: string;
+          scope: "global" | "category" | "product";
+          percent: number;
+          is_active: boolean;
+          category_id: string | null;
+          product_id: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          scope: "global" | "category" | "product";
+          percent: number;
+          is_active?: boolean;
+          category_id?: string | null;
+          product_id?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          scope?: "global" | "category" | "product";
+          percent?: number;
+          is_active?: boolean;
+          category_id?: string | null;
+          product_id?: string | null;
+          created_by?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      discount_audit_logs: {
+        Row: {
+          id: string;
+          rule_id: string | null;
+          scope: "global" | "category" | "product";
+          action: "create" | "update" | "delete" | "activate" | "deactivate";
+          summary: string;
+          previous_percent: number | null;
+          next_percent: number | null;
+          affected_product_ids: string[];
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          rule_id?: string | null;
+          scope: "global" | "category" | "product";
+          action: "create" | "update" | "delete" | "activate" | "deactivate";
+          summary: string;
+          previous_percent?: number | null;
+          next_percent?: number | null;
+          affected_product_ids?: string[];
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          rule_id?: string | null;
+          scope?: "global" | "category" | "product";
+          action?: "create" | "update" | "delete" | "activate" | "deactivate";
+          summary?: string;
+          previous_percent?: number | null;
+          next_percent?: number | null;
+          affected_product_ids?: string[];
+          created_by?: string | null;
         };
         Relationships: [];
       };
@@ -535,17 +875,53 @@ export interface Database {
         Args: Record<string, never>;
         Returns: boolean;
       };
+      is_admin_ops: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
+      is_beba: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
+      claim_delivery_order: {
+        Args: {
+          p_order_id: string;
+          p_beba_user_id: string;
+          p_note?: string | null;
+        };
+        Returns: Json;
+      };
+      process_mpesa_callback: {
+        Args: {
+          p_payload: Json;
+          p_security_valid?: boolean | null;
+          p_rejection_reason?: string | null;
+        };
+        Returns: Json;
+      };
     };
     Enums: {
-      user_role: "customer" | "admin";
+      user_role:
+        | "customer"
+        | "admin"
+        | "super_admin"
+        | "staff_admin"
+        | "beba";
       order_status:
         | "pending"
+        | "pending_payment"
+        | "payment_init_failed"
+        | "failed_payment"
+        | "refund_requested"
         | "confirmed"
         | "paid"
+        | "ready_for_dispatch"
         | "preparing"
         | "left_shop"
         | "in_transit"
         | "out_for_delivery"
+        | "delivery_failed"
+        | "returned"
         | "processing"
         | "shipped"
         | "delivered"

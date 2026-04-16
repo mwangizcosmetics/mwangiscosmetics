@@ -86,6 +86,31 @@ export interface Product {
   updatedAt?: string;
 }
 
+export type DiscountScope = "global" | "category" | "product";
+
+export interface DiscountRule {
+  id: string;
+  scope: DiscountScope;
+  percent: number;
+  isActive: boolean;
+  targetCategorySlug?: string;
+  targetProductId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DiscountAuditLog {
+  id: string;
+  scope: DiscountScope;
+  action: "create" | "update" | "delete" | "activate" | "deactivate";
+  ruleId?: string;
+  summary: string;
+  previousPercent?: number;
+  nextPercent?: number;
+  affectedProductIds: string[];
+  createdAt: string;
+}
+
 export interface CartItem {
   productId: string;
   quantity: number;
@@ -99,17 +124,31 @@ export interface WishlistItem {
 
 export type OrderStatus =
   | "pending"
+  | "pending_payment"
+  | "payment_init_failed"
+  | "failed_payment"
+  | "refund_requested"
   | "confirmed"
   | "paid"
+  | "ready_for_dispatch"
   | "preparing"
   | "left_shop"
   | "in_transit"
   | "out_for_delivery"
+  | "delivery_failed"
+  | "returned"
   | "processing"
   | "shipped"
   | "delivered"
   | "cancelled"
   | "refunded";
+
+export type UserRole =
+  | "customer"
+  | "super_admin"
+  | "staff_admin"
+  | "beba"
+  | "admin";
 
 export interface Address {
   id: string;
@@ -117,6 +156,7 @@ export interface Address {
   label?: string;
   fullName: string;
   phone: string;
+  email?: string;
   countyId: string;
   county: string;
   townCenterId: string;
@@ -164,6 +204,50 @@ export interface Order {
     etaText: string;
   };
   paymentMethod: string;
+  paymentStatus?: "pending" | "success" | "failed" | "refunded";
+  paymentReference?: string;
+  inventoryCommittedAt?: string;
+  deliveryAgentId?: string;
+  readyForDispatchAt?: string;
+  inTransitAt?: string;
+  deliveredAt?: string;
+  deliveryFailedAt?: string;
+  returnedAt?: string;
+  dispatchNote?: string;
+  deliveryNote?: string;
+}
+
+export type PaymentMethod = "mpesa" | "card" | "cash";
+
+export type PaymentProvider = "mpesa_daraja" | "card_placeholder" | "cash_manual";
+
+export type PaymentRecordStatus =
+  | "initiated"
+  | "pending"
+  | "success"
+  | "failed"
+  | "cancelled"
+  | "timed_out"
+  | "init_failed";
+
+export interface PaymentRecord {
+  id: string;
+  orderId: string;
+  userId: string;
+  method: PaymentMethod;
+  provider: PaymentProvider;
+  status: PaymentRecordStatus;
+  amount: number;
+  currency: CurrencyCode;
+  phone?: string;
+  checkoutRequestId?: string;
+  merchantRequestId?: string;
+  providerReference?: string;
+  rawResponse?: Record<string, unknown>;
+  errorMessage?: string;
+  createdAt: string;
+  updatedAt: string;
+  confirmedAt?: string;
 }
 
 export interface UserProfile {
@@ -172,6 +256,8 @@ export interface UserProfile {
   email: string;
   phone?: string;
   avatarUrl?: string;
+  role?: UserRole;
+  isActive?: boolean;
   loyaltyTier: "Classic" | "Glow" | "Velvet";
   defaultAddress?: Address;
   savedAddresses: Address[];

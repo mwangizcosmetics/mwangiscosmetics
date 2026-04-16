@@ -1,8 +1,16 @@
+import { redirect } from "next/navigation";
+
 import { adminTableSamples } from "@/lib/data/mock-data";
 import { formatCurrency } from "@/lib/utils/format";
 import { AdminTableShell } from "@/components/admin/admin-table-shell";
+import { requirePermission } from "@/lib/services/auth-server";
 
-export default function AdminCustomersPage() {
+export default async function AdminCustomersPage() {
+  const auth = await requirePermission("admin:customers");
+  if (!auth.ok) {
+    redirect("/admin");
+  }
+
   return (
     <AdminTableShell
       title="Customers"

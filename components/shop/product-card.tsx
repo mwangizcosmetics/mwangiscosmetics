@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Heart, ShoppingBag } from "lucide-react";
 import { motion } from "framer-motion";
+import { useMemo } from "react";
 import { toast } from "sonner";
 
 import type { Product } from "@/lib/types/ecommerce";
@@ -13,7 +14,9 @@ import { DiscountBadge } from "@/components/shared/discount-badge";
 import { PriceDisplay } from "@/components/shared/price-display";
 import { RatingStars } from "@/components/shared/rating-stars";
 import { useCartStore } from "@/lib/stores/cart-store";
+import { useCommerceStore } from "@/lib/stores/commerce-store";
 import { useWishlistStore } from "@/lib/stores/wishlist-store";
+import { getProductPricingSnapshot } from "@/lib/services/pricing-service";
 import { cn } from "@/lib/utils/cn";
 
 interface ProductCardProps {
@@ -24,14 +27,23 @@ interface ProductCardProps {
 
 export function ProductCard({ product, compact = false, className }: ProductCardProps) {
   const addItem = useCartStore((state) => state.addItem);
+  const discountRules = useCommerceStore((state) => state.discountRules);
   const toggleWishlist = useWishlistStore((state) => state.toggleItem);
   const hasInWishlist = useWishlistStore((state) =>
     state.items.some((item) => item.productId === product.id),
   );
 
   const image = product.images.find((img) => img.isPrimary) ?? product.images[0];
+  const pricing = useMemo(
+    () => getProductPricingSnapshot(product, discountRules),
+    [discountRules, product],
+  );
 
   const handleAddToCart = () => {
+    if (product.stock < 1) {
+      toast.error(`${product.name} is currently out of stock.`);
+      return;
+    }
     addItem(product.id, 1);
     toast.success(`${product.name} added to cart`);
   };
@@ -95,14 +107,27 @@ export function ProductCard({ product, compact = false, className }: ProductCard
         <div className="mt-auto space-y-1.5">
           <div className="flex items-center justify-between gap-1.5">
             <div className="space-y-0.5">
-              <PriceDisplay price={product.price} compareAtPrice={product.compareAtPrice} currency={product.currency} />
-              <DiscountBadge price={product.price} compareAtPrice={product.compareAtPrice} />
+              <PriceDisplay
+                price={pricing.finalPrice}
+                compareAtPrice={pricing.compareAtPrice}
+                currency={product.currency}
+              />
+              <DiscountBadge
+                price={pricing.finalPrice}
+                compareAtPrice={pricing.compareAtPrice}
+                discountPercent={pricing.discountPercent}
+              />
             </div>
           </div>
           {!compact ? (
-            <Button size="sm" className="h-7 w-full rounded-lg px-2 text-[10px]" onClick={handleAddToCart}>
+            <Button
+              size="sm"
+              className="h-7 w-full rounded-lg px-2 text-[10px]"
+              onClick={handleAddToCart}
+              disabled={product.stock < 1}
+            >
               <ShoppingBag className="size-3.5" />
-              Add to Cart
+              {product.stock < 1 ? "Out of Stock" : "Add to Cart"}
             </Button>
           ) : null}
         </div>

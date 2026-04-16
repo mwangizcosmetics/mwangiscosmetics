@@ -3,6 +3,7 @@ import { z } from "zod";
 export const addressSchema = z.object({
   label: z.string().trim().max(20, "Label is too long").optional(),
   fullName: z.string().trim().min(2, "Full name is required"),
+  email: z.string().trim().email("Enter a valid email address").optional().or(z.literal("")),
   phone: z
     .string()
     .trim()

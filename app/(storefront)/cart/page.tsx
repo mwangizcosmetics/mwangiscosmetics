@@ -15,9 +15,16 @@ import { calculateCartTotals, getDetailedCartItems } from "@/lib/services/cart-s
 export default function CartPage() {
   const items = useCartStore((state) => state.items);
   const products = useCommerceStore((state) => state.products);
+  const discountRules = useCommerceStore((state) => state.discountRules);
 
-  const detailedItems = useMemo(() => getDetailedCartItems(items, products), [items, products]);
-  const totals = useMemo(() => calculateCartTotals(items, products), [items, products]);
+  const detailedItems = useMemo(
+    () => getDetailedCartItems(items, products, discountRules),
+    [discountRules, items, products],
+  );
+  const totals = useMemo(
+    () => calculateCartTotals(items, products, discountRules),
+    [discountRules, items, products],
+  );
 
   return (
     <SiteContainer className="space-y-5 py-6 sm:py-8">
@@ -34,6 +41,10 @@ export default function CartPage() {
                 key={item.productId}
                 product={item.product}
                 quantity={item.quantity}
+                unitPrice={item.pricing.finalPrice}
+                compareAtPrice={item.pricing.compareAtPrice}
+                discountPercent={item.pricing.discountPercent}
+                lineTotal={item.lineTotal}
               />
             ))}
           </div>

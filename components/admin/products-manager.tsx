@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { useCommerceStore } from "@/lib/stores/commerce-store";
+import { getProductPricingSnapshot } from "@/lib/services/pricing-service";
 import { formatCurrency, slugify } from "@/lib/utils/format";
 import {
   adminProductSchema,
@@ -61,6 +62,7 @@ function parseImageUrls(value: string) {
 export function ProductsManager() {
   const categories = useCommerceStore((state) => state.categories);
   const products = useCommerceStore((state) => state.products);
+  const discountRules = useCommerceStore((state) => state.discountRules);
   const hasHydrated = useCommerceStore((state) => state.hasHydrated);
   const createProduct = useCommerceStore((state) => state.createProduct);
   const updateProduct = useCommerceStore((state) => state.updateProduct);
@@ -69,6 +71,7 @@ export function ProductsManager() {
   const deleteProduct = useCommerceStore((state) => state.deleteProduct);
 
   const [searchValue, setSearchValue] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -81,6 +84,10 @@ export function ProductsManager() {
     const query = searchValue.trim().toLowerCase();
     return products
       .filter((product) => {
+        const categoryMatch =
+          categoryFilter === "all" ? true : product.categorySlug === categoryFilter;
+        if (!categoryMatch) return false;
+
         if (!query) return true;
         return (
           product.name.toLowerCase().includes(query) ||
@@ -88,8 +95,28 @@ export function ProductsManager() {
           product.sku.toLowerCase().includes(query)
         );
       })
-      .sort((a, b) => b.name.localeCompare(a.name));
-  }, [products, searchValue]);
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [categoryFilter, products, searchValue]);
+
+  const groupedProducts = useMemo(() => {
+    const categoryNameBySlug = new Map(
+      categories.map((category) => [category.slug, category.name]),
+    );
+    const groupedMap = new Map<string, typeof filteredProducts>();
+    for (const product of filteredProducts) {
+      const group = groupedMap.get(product.categorySlug) ?? [];
+      group.push(product);
+      groupedMap.set(product.categorySlug, group);
+    }
+
+    return [...groupedMap.entries()]
+      .map(([slug, entries]) => ({
+        slug,
+        name: categoryNameBySlug.get(slug) ?? slug,
+        products: entries,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [categories, filteredProducts]);
 
   const {
     register,
@@ -312,73 +339,108 @@ export function ProductsManager() {
         </Sheet>
       </div>
 
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--foreground-subtle)]" />
-        <Input
-          value={searchValue}
-          onChange={(event) => setSearchValue(event.target.value)}
-          placeholder="Search products by name, slug, or SKU..."
-          className="h-10 rounded-xl pl-9"
-        />
+      <div className="grid gap-2 sm:grid-cols-[1fr_200px]">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--foreground-subtle)]" />
+          <Input
+            value={searchValue}
+            onChange={(event) => setSearchValue(event.target.value)}
+            placeholder="Search products by name, slug, or SKU..."
+            className="h-10 rounded-xl pl-9"
+          />
+        </div>
+        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+          <SelectTrigger className="h-10 rounded-xl">
+            <SelectValue placeholder="Filter category" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Products</SelectItem>
+            {categories.map((category) => (
+              <SelectItem key={category.id} value={category.slug}>
+                {category.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
-      <div className="space-y-2">
-        {filteredProducts.map((product) => (
-          <article
-            key={product.id}
-            className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-white p-3"
-          >
-            <div>
-              <p className="text-sm font-semibold text-[var(--foreground)]">{product.name}</p>
-              <p className="text-xs text-[var(--foreground-muted)]">
-                {formatCurrency(product.price)} - Stock {product.stock} - {product.isActive === false ? "Inactive" : "Active"}
+      <div className="space-y-4">
+        {groupedProducts.map((group) => (
+          <div key={group.slug} className="space-y-2">
+            {categoryFilter === "all" ? (
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--foreground-subtle)]">
+                {group.name}
               </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" className="h-8 rounded-full" onClick={() => openEdit(product.id)}>
-                <Edit3 className="size-3.5" />
-                Edit
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-8 rounded-full"
-                onClick={() => {
-                  toggleProductFeatured(product.id);
-                  toast.success(
-                    product.isFeatured ? "Removed from featured." : "Marked as featured.",
-                  );
-                }}
-              >
-                <Star className="size-3.5" />
-                {product.isFeatured ? "Unfeature" : "Feature"}
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-8 rounded-full"
-                onClick={() => {
-                  toggleProductActive(product.id);
-                  toast.success(product.isActive === false ? "Product activated." : "Product deactivated.");
-                }}
-              >
-                {product.isActive === false ? "Activate" : "Deactivate"}
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-8 rounded-full text-[#a11f2f] hover:bg-[#ffe8ec] hover:text-[#a11f2f]"
-                onClick={() => {
-                  deleteProduct(product.id);
-                  toast.success("Product removed.");
-                }}
-              >
-                <Trash2 className="size-3.5" />
-                Delete
-              </Button>
-            </div>
-          </article>
+            ) : null}
+            {group.products.map((product) => {
+              const pricing = getProductPricingSnapshot(product, discountRules);
+              return (
+                <article
+                  key={product.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-white p-3"
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-[var(--foreground)]">{product.name}</p>
+                    <p className="text-xs text-[var(--foreground-muted)]">
+                      {formatCurrency(pricing.finalPrice)}
+                      {pricing.hasDiscount ? ` (Base ${formatCurrency(pricing.basePrice)})` : ""}
+                      {" - "}Stock {product.stock} -{" "}
+                      {product.isActive === false ? "Inactive" : "Active"}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" variant="outline" className="h-8 rounded-full" onClick={() => openEdit(product.id)}>
+                      <Edit3 className="size-3.5" />
+                      Edit
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 rounded-full"
+                      onClick={() => {
+                        toggleProductFeatured(product.id);
+                        toast.success(
+                          product.isFeatured ? "Removed from featured." : "Marked as featured.",
+                        );
+                      }}
+                    >
+                      <Star className="size-3.5" />
+                      {product.isFeatured ? "Unfeature" : "Feature"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 rounded-full"
+                      onClick={() => {
+                        toggleProductActive(product.id);
+                        toast.success(product.isActive === false ? "Product activated." : "Product deactivated.");
+                      }}
+                    >
+                      {product.isActive === false ? "Activate" : "Deactivate"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 rounded-full text-[#a11f2f] hover:bg-[#ffe8ec] hover:text-[#a11f2f]"
+                      onClick={() => {
+                        deleteProduct(product.id);
+                        toast.success("Product removed.");
+                      }}
+                    >
+                      <Trash2 className="size-3.5" />
+                      Delete
+                    </Button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
         ))}
+        {!groupedProducts.length ? (
+          <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-alt)] p-4 text-sm text-[var(--foreground-muted)]">
+            No products match the current search/category filter.
+          </div>
+        ) : null}
       </div>
     </section>
   );

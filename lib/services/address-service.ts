@@ -42,6 +42,7 @@ export function mapAddressFromForm({
     userId,
     label: values.label?.trim() || undefined,
     fullName: values.fullName.trim(),
+    email: values.email?.trim() || undefined,
     phone: values.phone.trim(),
     countyId: values.countyId,
     county: resolveCountyName(counties, values.countyId),

@@ -38,6 +38,7 @@ import { addressSchema, type AddressFormValues } from "@/lib/validators/address"
 const EMPTY_VALUES: AddressFormValues = {
   label: "",
   fullName: "",
+  email: "",
   phone: "",
   countyId: "",
   townCenterId: "",
@@ -122,6 +123,7 @@ export function AddressBook({ userId }: AddressBookProps) {
     reset({
       label: address.label ?? "",
       fullName: address.fullName,
+      email: address.email ?? "",
       phone: address.phone,
       countyId: address.countyId,
       townCenterId: address.townCenterId,
@@ -246,6 +248,17 @@ export function AddressBook({ userId }: AddressBookProps) {
                   />
                   {errors.phone ? (
                     <p className="text-xs text-[#a11f2f]">{errors.phone.message}</p>
+                  ) : null}
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="email">Email (optional)</Label>
+                  <Input
+                    id="email"
+                    placeholder="you@example.com"
+                    {...register("email")}
+                  />
+                  {errors.email ? (
+                    <p className="text-xs text-[#a11f2f]">{errors.email.message}</p>
                   ) : null}
                 </div>
                 <div className="space-y-2">
@@ -392,6 +405,9 @@ export function AddressBook({ userId }: AddressBookProps) {
                 </div>
                 <p className="mt-2 font-medium text-[var(--foreground)]">{address.fullName}</p>
                 <p className="mt-1 text-[var(--foreground-muted)]">{address.phone}</p>
+                {address.email ? (
+                  <p className="mt-1 text-[var(--foreground-muted)]">{address.email}</p>
+                ) : null}
                 <p className="mt-1 text-[var(--foreground-muted)]">{address.streetAddress}</p>
                 {address.buildingOrHouse ? (
                   <p className="text-[var(--foreground-muted)]">{address.buildingOrHouse}</p>

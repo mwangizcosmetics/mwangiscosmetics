@@ -69,8 +69,38 @@ export const adminRefundUpdateSchema = z.object({
   adminNote: z.string().optional(),
 });
 
+export const adminDiscountSchema = z
+  .object({
+    scope: z.enum(["global", "category", "product"]),
+    percent: z.coerce
+      .number()
+      .min(0, "Discount cannot be negative")
+      .max(100, "Discount cannot exceed 100%"),
+    targetCategorySlug: z.string().optional(),
+    targetProductId: z.string().optional(),
+    isActive: z.boolean().default(true),
+  })
+  .superRefine((value, ctx) => {
+    if (value.scope === "category" && !value.targetCategorySlug) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["targetCategorySlug"],
+        message: "Select a category for category discounts.",
+      });
+    }
+
+    if (value.scope === "product" && !value.targetProductId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["targetProductId"],
+        message: "Select a product for product discounts.",
+      });
+    }
+  });
+
 export type AdminCategoryValues = z.infer<typeof adminCategorySchema>;
 export type AdminProductValues = z.infer<typeof adminProductSchema>;
 export type AdminCouponValues = z.infer<typeof adminCouponSchema>;
 export type AdminBannerValues = z.infer<typeof adminBannerSchema>;
 export type AdminRefundUpdateValues = z.infer<typeof adminRefundUpdateSchema>;
+export type AdminDiscountValues = z.infer<typeof adminDiscountSchema>;

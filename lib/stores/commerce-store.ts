@@ -16,9 +16,16 @@ import type {
   Banner,
   Category,
   Coupon,
+  DiscountAuditLog,
+  DiscountRule,
+  DiscountScope,
   Order,
   OrderEvent,
   OrderStatus,
+  PaymentMethod,
+  PaymentProvider,
+  PaymentRecord,
+  PaymentRecordStatus,
   Product,
   RefundRequest,
 } from "@/lib/types/ecommerce";
@@ -36,6 +43,12 @@ function createId(prefix: string) {
 
 function buildOrderEventMessage(status: OrderStatus) {
   switch (status) {
+    case "pending_payment":
+      return "Order created and awaiting payment";
+    case "failed_payment":
+      return "Payment failed";
+    case "refund_requested":
+      return "Refund requested";
     case "confirmed":
       return "Order confirmed";
     case "preparing":
@@ -106,9 +119,14 @@ const seededBanners: Banner[] = seedBanners.map((banner, index) => ({
   updatedAt: "2026-04-03T08:00:00.000Z",
 }));
 
+const seededDiscountRules: DiscountRule[] = [];
+const seededDiscountAuditLogs: DiscountAuditLog[] = [];
+
 const seededOrders: Order[] = seedOrders.map((order) => ({
   ...order,
   status: normalizeOrderStatus(order.status),
+  paymentStatus: "success",
+  inventoryCommittedAt: order.placedAt,
 }));
 
 const seededOrderEvents: OrderEvent[] = seededOrders.map((order, index) => ({
@@ -117,6 +135,21 @@ const seededOrderEvents: OrderEvent[] = seededOrders.map((order, index) => ({
   eventType: order.status,
   message: buildOrderEventMessage(order.status),
   createdAt: order.placedAt,
+}));
+
+const seededPayments: PaymentRecord[] = seededOrders.map((order, index) => ({
+  id: `pay-seed-${index}-${order.id}`,
+  orderId: order.id,
+  userId: order.userId,
+  method: (order.paymentMethod as PaymentMethod) ?? "mpesa",
+  provider: "cash_manual",
+  status: "success",
+  amount: order.total,
+  currency: order.currency,
+  providerReference: `SEED-${order.orderNumber}`,
+  createdAt: order.placedAt,
+  updatedAt: order.placedAt,
+  confirmedAt: order.placedAt,
 }));
 
 interface CreateCategoryInput {
@@ -181,6 +214,14 @@ interface UpdateBannerInput extends CreateBannerInput {
   position: number;
 }
 
+interface UpsertDiscountRuleInput {
+  scope: DiscountScope;
+  percent: number;
+  isActive: boolean;
+  targetCategorySlug?: string;
+  targetProductId?: string;
+}
+
 interface PlaceOrderInput {
   userId: string;
   items: Order["items"];
@@ -189,7 +230,7 @@ interface PlaceOrderInput {
   shipping: number;
   tax: number;
   total: number;
-  paymentMethod: string;
+  paymentMethod: PaymentMethod;
   shippingAddress: Order["shippingAddress"];
   deliverySnapshot?: Order["deliverySnapshot"];
 }
@@ -201,12 +242,31 @@ interface CreateRefundInput {
   note?: string;
 }
 
+interface UpsertPaymentInput {
+  orderId: string;
+  userId: string;
+  method: PaymentMethod;
+  provider: PaymentProvider;
+  status: PaymentRecordStatus;
+  amount: number;
+  currency: Order["currency"];
+  phone?: string;
+  checkoutRequestId?: string;
+  merchantRequestId?: string;
+  providerReference?: string;
+  rawResponse?: Record<string, unknown>;
+  errorMessage?: string;
+}
+
 interface CommerceStore {
   categories: Category[];
   products: Product[];
   coupons: Coupon[];
   banners: Banner[];
+  discountRules: DiscountRule[];
+  discountAuditLogs: DiscountAuditLog[];
   orders: Order[];
+  payments: PaymentRecord[];
   refunds: RefundRequest[];
   orderEvents: OrderEvent[];
   hasHydrated: boolean;
@@ -242,7 +302,29 @@ interface CommerceStore {
   toggleBannerActive: (bannerId: string) => void;
   deleteBanner: (bannerId: string) => void;
   reorderBanner: (bannerId: string, position: number) => void;
+  upsertDiscountRule: (
+    input: UpsertDiscountRuleInput,
+  ) => { ok: boolean; message?: string; updatedRule?: DiscountRule; replacedRuleId?: string };
+  removeDiscountRule: (ruleId: string) => { ok: boolean; message?: string };
   incrementCouponUsage: (code: string) => void;
+  upsertPaymentRecord: (input: UpsertPaymentInput) => { ok: boolean; payment: PaymentRecord };
+  confirmOrderPayment: (
+    orderId: string,
+    input?: {
+      paymentReference?: string;
+      checkoutRequestId?: string;
+      providerReference?: string;
+      rawResponse?: Record<string, unknown>;
+    },
+  ) => { ok: boolean; message?: string };
+  failOrderPayment: (
+    orderId: string,
+    input?: {
+      errorMessage?: string;
+      checkoutRequestId?: string;
+      rawResponse?: Record<string, unknown>;
+    },
+  ) => { ok: boolean; message?: string };
   placeOrder: (input: PlaceOrderInput) => { ok: boolean; order?: Order; message?: string };
   updateOrderStatus: (orderId: string, status: OrderStatus) => { ok: boolean };
   createRefundRequest: (
@@ -263,6 +345,45 @@ function hasDuplicateSlug<T extends { id: string; slug: string }>(
   return collection.some(
     (item) => item.slug.toLowerCase() === slug.toLowerCase() && item.id !== idToIgnore,
   );
+}
+
+function clampDiscountPercent(value: number) {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function doesRuleMatch(
+  rule: DiscountRule,
+  input: {
+    scope: DiscountScope;
+    targetCategorySlug?: string;
+    targetProductId?: string;
+  },
+) {
+  if (rule.scope !== input.scope) {
+    return false;
+  }
+  if (rule.scope === "global") {
+    return true;
+  }
+  if (rule.scope === "category") {
+    return rule.targetCategorySlug === input.targetCategorySlug;
+  }
+  return rule.targetProductId === input.targetProductId;
+}
+
+function getAffectedProductIds(
+  products: Product[],
+  rule: Pick<DiscountRule, "scope" | "targetCategorySlug" | "targetProductId">,
+) {
+  if (rule.scope === "global") {
+    return products.map((product) => product.id);
+  }
+  if (rule.scope === "category") {
+    return products
+      .filter((product) => product.categorySlug === rule.targetCategorySlug)
+      .map((product) => product.id);
+  }
+  return rule.targetProductId ? [rule.targetProductId] : [];
 }
 
 interface BannerRow {
@@ -378,6 +499,14 @@ async function deleteBannerRemote(bannerId: string) {
   } catch {}
 }
 
+function hasSufficientStock(order: Order, products: Product[]) {
+  return order.items.every((item) => {
+    const product = products.find((candidate) => candidate.id === item.productId);
+    if (!product) return false;
+    return product.stock >= item.quantity;
+  });
+}
+
 export const useCommerceStore = create<CommerceStore>()(
   persist(
     (set, get) => ({
@@ -385,7 +514,10 @@ export const useCommerceStore = create<CommerceStore>()(
       products: seededProducts,
       coupons: seededCoupons,
       banners: seededBanners,
+      discountRules: seededDiscountRules,
+      discountAuditLogs: seededDiscountAuditLogs,
       orders: seededOrders,
+      payments: seededPayments,
       refunds: [],
       orderEvents: seededOrderEvents,
       hasHydrated: false,
@@ -477,15 +609,46 @@ export const useCommerceStore = create<CommerceStore>()(
           ),
         })),
       deleteCategory: (categoryId) =>
-        set((state) => ({
-          categories: state.categories.filter((category) => category.id !== categoryId),
-          products: state.products.map((product) =>
-            product.categorySlug ===
-            state.categories.find((category) => category.id === categoryId)?.slug
-              ? { ...product, isActive: false, updatedAt: nowIso() }
-              : product,
-          ),
-        })),
+        set((state) => {
+          const now = nowIso();
+          const deletedCategory = state.categories.find(
+            (category) => category.id === categoryId,
+          );
+          const deletedSlug = deletedCategory?.slug;
+          const removedCategoryRules = state.discountRules.filter(
+            (rule) =>
+              rule.scope === "category" && rule.targetCategorySlug === deletedSlug,
+          );
+
+          return {
+            categories: state.categories.filter((category) => category.id !== categoryId),
+            products: state.products.map((product) =>
+              product.categorySlug === deletedSlug
+                ? { ...product, isActive: false, updatedAt: now }
+                : product,
+            ),
+            discountRules: state.discountRules.filter(
+              (rule) =>
+                !(
+                  rule.scope === "category" &&
+                  rule.targetCategorySlug === deletedSlug
+                ),
+            ),
+            discountAuditLogs: [
+              ...removedCategoryRules.map((rule) => ({
+                id: createId("dsc-audit"),
+                scope: "category" as const,
+                action: "delete" as const,
+                ruleId: rule.id,
+                summary: `Category discount removed after deleting ${deletedSlug}`,
+                previousPercent: rule.percent,
+                affectedProductIds: getAffectedProductIds(state.products, rule),
+                createdAt: now,
+              })),
+              ...state.discountAuditLogs,
+            ].slice(0, 500),
+          };
+        }),
       createProduct: (input) => {
         const category = get().categories.find(
           (item) => item.slug === input.categorySlug && item.isActive !== false,
@@ -606,9 +769,36 @@ export const useCommerceStore = create<CommerceStore>()(
           ),
         })),
       deleteProduct: (productId) =>
-        set((state) => ({
-          products: state.products.filter((product) => product.id !== productId),
-        })),
+        set((state) => {
+          const now = nowIso();
+          const removedProductRule = state.discountRules.find(
+            (rule) => rule.scope === "product" && rule.targetProductId === productId,
+          );
+          return {
+            products: state.products.filter((product) => product.id !== productId),
+            discountRules: state.discountRules.filter(
+              (rule) =>
+                !(
+                  rule.scope === "product" && rule.targetProductId === productId
+                ),
+            ),
+            discountAuditLogs: removedProductRule
+              ? [
+                  {
+                    id: createId("dsc-audit"),
+                    scope: "product" as const,
+                    action: "delete" as const,
+                    ruleId: removedProductRule.id,
+                    summary: "Product discount removed after deleting product",
+                    previousPercent: removedProductRule.percent,
+                    affectedProductIds: [productId],
+                    createdAt: now,
+                  },
+                  ...state.discountAuditLogs,
+                ].slice(0, 500)
+              : state.discountAuditLogs,
+          };
+        }),
       createCoupon: (input) => {
         const code = input.code.trim().toUpperCase();
         if (!code) {
@@ -772,6 +962,127 @@ export const useCommerceStore = create<CommerceStore>()(
           void upsertBannerRemote(updatedBanner);
         }
       },
+      upsertDiscountRule: (input) => {
+        const normalizedPercent = clampDiscountPercent(input.percent);
+        if (normalizedPercent < 0 || normalizedPercent > 100) {
+          return {
+            ok: false,
+            message: "Discount percent must be between 0 and 100.",
+          };
+        }
+
+        if (input.scope === "category" && !input.targetCategorySlug) {
+          return {
+            ok: false,
+            message: "Select a category to apply category discount.",
+          };
+        }
+
+        if (input.scope === "product" && !input.targetProductId) {
+          return {
+            ok: false,
+            message: "Select a product to apply product discount.",
+          };
+        }
+
+        const now = nowIso();
+        const state = get();
+        const existing = state.discountRules.find((rule) =>
+          doesRuleMatch(rule, {
+            scope: input.scope,
+            targetCategorySlug: input.targetCategorySlug,
+            targetProductId: input.targetProductId,
+          }),
+        );
+
+        let updatedRule: DiscountRule;
+        if (existing) {
+          updatedRule = {
+            ...existing,
+            percent: normalizedPercent,
+            isActive: input.isActive,
+            updatedAt: now,
+          };
+        } else {
+          updatedRule = {
+            id: createId("dsc"),
+            scope: input.scope,
+            percent: normalizedPercent,
+            isActive: input.isActive,
+            targetCategorySlug: input.targetCategorySlug,
+            targetProductId: input.targetProductId,
+            createdAt: now,
+            updatedAt: now,
+          };
+        }
+
+        const affectedProductIds = getAffectedProductIds(state.products, updatedRule);
+        const summary =
+          input.scope === "global"
+            ? `Global discount set to ${normalizedPercent}%`
+            : input.scope === "category"
+              ? `Category ${updatedRule.targetCategorySlug} discount set to ${normalizedPercent}%`
+              : `Product ${updatedRule.targetProductId} discount set to ${normalizedPercent}%`;
+
+        const auditLog: DiscountAuditLog = {
+          id: createId("dsc-audit"),
+          scope: updatedRule.scope,
+          action: existing
+            ? input.isActive
+              ? "update"
+              : "deactivate"
+            : input.isActive
+              ? "create"
+              : "deactivate",
+          ruleId: updatedRule.id,
+          summary,
+          previousPercent: existing?.percent,
+          nextPercent: updatedRule.percent,
+          affectedProductIds,
+          createdAt: now,
+        };
+
+        set((current) => ({
+          discountRules: existing
+            ? current.discountRules.map((rule) =>
+                rule.id === existing.id ? updatedRule : rule,
+              )
+            : [updatedRule, ...current.discountRules],
+          discountAuditLogs: [auditLog, ...current.discountAuditLogs].slice(0, 500),
+        }));
+
+        return {
+          ok: true,
+          updatedRule,
+          replacedRuleId: existing?.id,
+        };
+      },
+      removeDiscountRule: (ruleId) => {
+        const existing = get().discountRules.find((rule) => rule.id === ruleId);
+        if (!existing) {
+          return { ok: false, message: "Discount rule not found." };
+        }
+
+        const now = nowIso();
+        set((state) => ({
+          discountRules: state.discountRules.filter((rule) => rule.id !== ruleId),
+          discountAuditLogs: [
+            {
+              id: createId("dsc-audit"),
+              scope: existing.scope,
+              action: "delete" as const,
+              ruleId,
+              summary: "Discount rule removed",
+              previousPercent: existing.percent,
+              affectedProductIds: getAffectedProductIds(state.products, existing),
+              createdAt: now,
+            },
+            ...state.discountAuditLogs,
+          ].slice(0, 500),
+        }));
+
+        return { ok: true };
+      },
       incrementCouponUsage: (code) =>
         set((state) => ({
           coupons: state.coupons.map((coupon) =>
@@ -784,13 +1095,159 @@ export const useCommerceStore = create<CommerceStore>()(
               : coupon,
           ),
         })),
+      upsertPaymentRecord: (input) => {
+        const now = nowIso();
+        const existing = get().payments.find((payment) => {
+          if (input.checkoutRequestId && payment.checkoutRequestId) {
+            return payment.checkoutRequestId === input.checkoutRequestId;
+          }
+          return (
+            payment.orderId === input.orderId &&
+            payment.method === input.method &&
+            payment.status !== "success"
+          );
+        });
+
+        const paymentRecord: PaymentRecord = existing
+          ? {
+              ...existing,
+              ...input,
+              id: existing.id,
+              updatedAt: now,
+              confirmedAt:
+                input.status === "success" ? existing.confirmedAt ?? now : existing.confirmedAt,
+            }
+          : {
+              id: createId("pay"),
+              ...input,
+              createdAt: now,
+              updatedAt: now,
+              confirmedAt: input.status === "success" ? now : undefined,
+            };
+
+        set((state) => ({
+          payments: existing
+            ? state.payments.map((payment) =>
+                payment.id === existing.id ? paymentRecord : payment,
+              )
+            : [paymentRecord, ...state.payments],
+        }));
+
+        return { ok: true, payment: paymentRecord };
+      },
+      confirmOrderPayment: (orderId, input) => {
+        const state = get();
+        const order = state.orders.find((candidate) => candidate.id === orderId);
+        if (!order) {
+          return { ok: false, message: "Order not found." };
+        }
+
+        if (order.paymentStatus === "success" || order.inventoryCommittedAt) {
+          return { ok: true };
+        }
+
+        if (!hasSufficientStock(order, state.products)) {
+          return {
+            ok: false,
+            message: "Stock changed before payment confirmation. Review inventory.",
+          };
+        }
+
+        const now = nowIso();
+        set((current) => ({
+          products: current.products.map((product) => {
+            const item = order.items.find((orderItem) => orderItem.productId === product.id);
+            if (!item) {
+              return product;
+            }
+
+            const nextStock = Math.max(product.stock - item.quantity, 0);
+            return {
+              ...product,
+              stock: nextStock,
+              updatedAt: now,
+            };
+          }),
+          orders: current.orders.map((candidate) =>
+            candidate.id === orderId
+              ? {
+                  ...candidate,
+                  status: "paid",
+                  paymentStatus: "success",
+                  paymentReference:
+                    input?.paymentReference ??
+                    input?.providerReference ??
+                    candidate.paymentReference,
+                  inventoryCommittedAt: now,
+                }
+              : candidate,
+          ),
+          orderEvents: [
+            {
+              id: createId("evt"),
+              orderId,
+              eventType: "paid",
+              message: "Payment confirmed and inventory committed",
+              createdAt: now,
+            },
+            ...current.orderEvents,
+          ],
+        }));
+
+        return { ok: true };
+      },
+      failOrderPayment: (orderId, input) => {
+        const order = get().orders.find((candidate) => candidate.id === orderId);
+        if (!order) {
+          return { ok: false, message: "Order not found." };
+        }
+
+        const now = nowIso();
+        set((state) => ({
+          orders: state.orders.map((candidate) =>
+            candidate.id === orderId
+              ? {
+                  ...candidate,
+                  status: "failed_payment",
+                  paymentStatus: "failed",
+                }
+              : candidate,
+          ),
+          orderEvents: [
+            {
+              id: createId("evt"),
+              orderId,
+              eventType: "failed_payment",
+              message: input?.errorMessage ?? "Payment failed",
+              createdAt: now,
+            },
+            ...state.orderEvents,
+          ],
+        }));
+
+        return { ok: true };
+      },
       placeOrder: (input) => {
+        const products = get().products;
+        for (const item of input.items) {
+          const product = products.find((candidate) => candidate.id === item.productId);
+          if (!product) {
+            return { ok: false, message: "A product in your cart is no longer available." };
+          }
+          if (product.stock < item.quantity) {
+            return {
+              ok: false,
+              message: `${product.name} only has ${product.stock} item(s) left in stock.`,
+            };
+          }
+        }
+
         const now = nowIso();
         const nextOrder: Order = {
           id: createId("ord"),
           orderNumber: `MWZ-${Math.floor(10000 + Math.random() * 90000)}`,
           userId: input.userId,
-          status: "confirmed",
+          status: "pending_payment",
           items: input.items,
           subtotal: input.subtotal,
           discount: input.discount,
@@ -802,13 +1259,14 @@ export const useCommerceStore = create<CommerceStore>()(
           shippingAddress: input.shippingAddress,
           paymentMethod: input.paymentMethod,
           deliverySnapshot: input.deliverySnapshot,
+          paymentStatus: "pending",
         };
 
         const event: OrderEvent = {
           id: createId("evt"),
           orderId: nextOrder.id,
-          eventType: "confirmed",
-          message: "Order confirmed",
+          eventType: "pending_payment",
+          message: "Order created. Awaiting payment confirmation.",
           createdAt: now,
         };
 
@@ -820,6 +1278,20 @@ export const useCommerceStore = create<CommerceStore>()(
         return { ok: true, order: nextOrder };
       },
       updateOrderStatus: (orderId, status) => {
+        const order = get().orders.find((candidate) => candidate.id === orderId);
+        if (!order) {
+          return { ok: false };
+        }
+
+        const paymentOptionalStatuses: OrderStatus[] = [
+          "pending_payment",
+          "failed_payment",
+          "cancelled",
+        ];
+        if (order.paymentStatus !== "success" && !paymentOptionalStatuses.includes(status)) {
+          return { ok: false };
+        }
+
         const event: OrderEvent = {
           id: createId("evt"),
           orderId,
@@ -830,7 +1302,18 @@ export const useCommerceStore = create<CommerceStore>()(
 
         set((state) => ({
           orders: state.orders.map((order) =>
-            order.id === orderId ? { ...order, status } : order,
+            order.id === orderId
+              ? {
+                  ...order,
+                  status,
+                  paymentStatus:
+                    status === "refunded"
+                      ? "refunded"
+                      : status === "failed_payment"
+                        ? "failed"
+                        : order.paymentStatus,
+                }
+              : order,
           ),
           orderEvents: [event, ...state.orderEvents],
         }));
@@ -856,6 +1339,24 @@ export const useCommerceStore = create<CommerceStore>()(
 
         set((state) => ({
           refunds: [refund, ...state.refunds],
+          orders: state.orders.map((order) =>
+            order.id === input.orderId
+              ? {
+                  ...order,
+                  status: "refund_requested",
+                }
+              : order,
+          ),
+          orderEvents: [
+            {
+              id: createId("evt"),
+              orderId: input.orderId,
+              eventType: "refund_requested",
+              message: "Refund requested by customer",
+              createdAt: now,
+            },
+            ...state.orderEvents,
+          ],
         }));
         return { ok: true, refund };
       },
@@ -864,6 +1365,8 @@ export const useCommerceStore = create<CommerceStore>()(
         if (!current) {
           return { ok: false, message: "Refund not found." };
         }
+
+        const currentOrder = get().orders.find((order) => order.id === current.orderId);
 
         set((state) => ({
           refunds: state.refunds.map((refund) =>
@@ -876,10 +1379,34 @@ export const useCommerceStore = create<CommerceStore>()(
                 }
               : refund,
           ),
+          products:
+            status === "refunded" && currentOrder?.inventoryCommittedAt
+              ? state.products.map((product) => {
+                  const refundedItem = currentOrder.items.find(
+                    (item) => item.productId === product.id,
+                  );
+                  if (!refundedItem) {
+                    return product;
+                  }
+
+                  return {
+                    ...product,
+                    stock: product.stock + refundedItem.quantity,
+                    updatedAt: nowIso(),
+                  };
+                })
+              : state.products,
           orders:
             status === "refunded"
               ? state.orders.map((order) =>
-                  order.id === current.orderId ? { ...order, status: "refunded" } : order,
+                  order.id === current.orderId
+                    ? {
+                        ...order,
+                        status: "refunded",
+                        paymentStatus: "refunded",
+                        inventoryCommittedAt: undefined,
+                      }
+                    : order,
                 )
               : state.orders,
           orderEvents:
@@ -907,7 +1434,10 @@ export const useCommerceStore = create<CommerceStore>()(
         products: state.products,
         coupons: state.coupons,
         banners: state.banners,
+        discountRules: state.discountRules,
+        discountAuditLogs: state.discountAuditLogs,
         orders: state.orders,
+        payments: state.payments,
         refunds: state.refunds,
         orderEvents: state.orderEvents,
       }),

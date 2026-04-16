@@ -9,6 +9,7 @@ import { toast } from "sonner";
 
 import { signInWithEmail } from "@/lib/supabase/auth";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser-client";
+import { getRoleDefaultPath, normalizeRole } from "@/lib/services/rbac";
 import { loginSchema, type LoginFormValues } from "@/lib/validators/auth";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -53,24 +54,23 @@ export function LoginForm() {
       } = await supabase.auth.getUser();
 
       if (user) {
-        const isAdminFromMetadata =
-          user.app_metadata?.role === "admin" ||
-          user.user_metadata?.role === "admin" ||
-          user.user_metadata?.is_admin === true;
+        const metadataRole =
+          user.app_metadata?.role?.toString() ?? user.user_metadata?.role?.toString() ?? null;
 
-        if (isAdminFromMetadata) {
-          fallbackPath = "/admin";
-        } else {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("role")
-            .eq("id", user.id)
-            .maybeSingle();
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role,is_active")
+          .eq("id", user.id)
+          .maybeSingle();
 
-          if (profile?.role === "admin") {
-            fallbackPath = "/admin";
-          }
+        if (profile && profile.is_active === false) {
+          toast.error("Your account is deactivated. Contact support.");
+          await supabase.auth.signOut();
+          return;
         }
+
+        const resolvedRole = normalizeRole(profile?.role ?? metadataRole);
+        fallbackPath = getRoleDefaultPath(resolvedRole);
       }
     }
 

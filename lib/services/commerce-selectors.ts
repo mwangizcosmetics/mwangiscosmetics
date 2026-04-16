@@ -2,11 +2,13 @@ import type {
   Banner,
   Category,
   Coupon,
+  DiscountRule,
   Order,
   Product,
   ServiceCounty,
   ServiceTown,
 } from "@/lib/types/ecommerce";
+import { getProductPricingSnapshot } from "@/lib/services/pricing-service";
 import { formatEtaRange } from "@/lib/utils/format";
 
 export type ProductSort =
@@ -17,7 +19,7 @@ export type ProductSort =
   | "price-desc"
   | "rating-desc";
 
-function bySort(sort: ProductSort) {
+function bySort(sort: ProductSort, discountRules: DiscountRule[]) {
   switch (sort) {
     case "newest":
       return (a: Product, b: Product) =>
@@ -26,9 +28,13 @@ function bySort(sort: ProductSort) {
       return (a: Product, b: Product) =>
         Number(Boolean(b.isBestSeller)) - Number(Boolean(a.isBestSeller));
     case "price-asc":
-      return (a: Product, b: Product) => a.price - b.price;
+      return (a: Product, b: Product) =>
+        getProductPricingSnapshot(a, discountRules).finalPrice -
+        getProductPricingSnapshot(b, discountRules).finalPrice;
     case "price-desc":
-      return (a: Product, b: Product) => b.price - a.price;
+      return (a: Product, b: Product) =>
+        getProductPricingSnapshot(b, discountRules).finalPrice -
+        getProductPricingSnapshot(a, discountRules).finalPrice;
     case "rating-desc":
       return (a: Product, b: Product) => b.rating - a.rating;
     case "featured":
@@ -43,7 +49,9 @@ export function getActiveCategories(categories: Category[]) {
 }
 
 export function getActiveProducts(products: Product[]) {
-  return products.filter((product) => product.isActive !== false);
+  return products.filter(
+    (product) => product.isActive !== false && product.stock > 0,
+  );
 }
 
 export function getActiveProductsByCategory(
@@ -57,6 +65,7 @@ export function getActiveProductsByCategory(
 
 export function queryProducts(
   products: Product[],
+  discountRules: DiscountRule[] = [],
   options: {
     search?: string;
     category?: string;
@@ -85,11 +94,15 @@ export function queryProducts(
     return categoryMatch && searchMatch;
   });
 
-  const chipFiltered = filterByChip(filtered, chip);
-  return chipFiltered.sort(bySort(sort));
+  const chipFiltered = filterByChip(filtered, chip, discountRules);
+  return chipFiltered.sort(bySort(sort, discountRules));
 }
 
-export function filterByChip(input: Product[], chip?: string) {
+export function filterByChip(
+  input: Product[],
+  chip?: string,
+  discountRules: DiscountRule[] = [],
+) {
   if (!chip) return input;
 
   switch (chip) {
@@ -98,7 +111,9 @@ export function filterByChip(input: Product[], chip?: string) {
     case "best-seller":
       return input.filter((product) => product.isBestSeller);
     case "under-3000":
-      return input.filter((product) => product.price <= 3000);
+      return input.filter(
+        (product) => getProductPricingSnapshot(product, discountRules).finalPrice <= 3000,
+      );
     case "hydrating":
       return input.filter((product) =>
         product.tags.some((tag) => tag.toLowerCase().includes("hydrating")),
@@ -251,11 +266,11 @@ export function calculateOrderTotals(input: {
 
 export function canRequestRefund(order: Order) {
   return (
+    order.status === "paid" ||
     order.status === "confirmed" ||
-    order.status === "preparing" ||
-    order.status === "left_shop" ||
+    order.status === "ready_for_dispatch" ||
     order.status === "in_transit" ||
-    order.status === "out_for_delivery" ||
+    order.status === "delivery_failed" ||
     order.status === "delivered"
   );
 }

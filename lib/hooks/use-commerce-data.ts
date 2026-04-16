@@ -39,5 +39,6 @@ export function useShopProducts(filters: {
   sort?: ProductSort;
 }) {
   const products = useCommerceStore((state) => state.products);
-  return queryProducts(products, filters);
+  const discountRules = useCommerceStore((state) => state.discountRules);
+  return queryProducts(products, discountRules, filters);
 }

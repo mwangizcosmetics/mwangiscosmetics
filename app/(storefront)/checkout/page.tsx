@@ -5,7 +5,6 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
-import { sampleProfile } from "@/lib/data/mock-data";
 import { SiteContainer } from "@/components/shared/site-container";
 import { SectionHeading } from "@/components/shared/section-heading";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -22,12 +21,12 @@ export default function CheckoutPage() {
   const clearCart = useCartStore((state) => state.clearCart);
   const products = useCommerceStore((state) => state.products);
   const coupons = useCommerceStore((state) => state.coupons);
-  const placeOrder = useCommerceStore((state) => state.placeOrder);
-  const incrementCouponUsage = useCommerceStore((state) => state.incrementCouponUsage);
+  const discountRules = useCommerceStore((state) => state.discountRules);
 
   const [couponCode, setCouponCode] = useState("");
   const [appliedCouponCode, setAppliedCouponCode] = useState<string | undefined>();
   const [discountAmount, setDiscountAmount] = useState(0);
+  const [isSubmittingCheckout, setIsSubmittingCheckout] = useState(false);
   const [deliveryQuote, setDeliveryQuote] = useState<{
     isServiceable: boolean;
     fee: number;
@@ -45,14 +44,24 @@ export default function CheckoutPage() {
     townName: "",
   });
 
-  const detailedItems = useMemo(() => getDetailedCartItems(items, products), [items, products]);
+  const detailedItems = useMemo(
+    () => getDetailedCartItems(items, products, discountRules),
+    [discountRules, items, products],
+  );
   const totals = useMemo(
     () =>
-      calculateCartTotals(items, products, {
+      calculateCartTotals(items, products, discountRules, {
         shippingFee: deliveryQuote.isServiceable ? deliveryQuote.fee : 0,
         discountAmount,
       }),
-    [deliveryQuote.fee, deliveryQuote.isServiceable, discountAmount, items, products],
+    [
+      deliveryQuote.fee,
+      deliveryQuote.isServiceable,
+      discountAmount,
+      discountRules,
+      items,
+      products,
+    ],
   );
 
   const handleApplyCoupon = () => {
@@ -107,58 +116,95 @@ export default function CheckoutPage() {
                 toast.error("Choose a serviceable delivery location.");
                 return;
               }
-
-              const orderItems = detailedItems.map((item) => ({
-                productId: item.productId,
-                quantity: item.quantity,
-                unitPrice: item.product.price,
-                productSnapshot: {
-                  name: item.product.name,
-                  image: item.product.images[0]?.url ?? "",
-                },
-              }));
-
-              const result = placeOrder({
-                userId: sampleProfile.id,
-                items: orderItems,
-                subtotal: totals.subtotal,
-                discount: totals.discount,
-                shipping: totals.shipping,
-                tax: totals.tax,
-                total: totals.total,
-                paymentMethod,
-                shippingAddress: address,
-                deliverySnapshot: {
-                  county: latestQuote.countyName,
-                  townCenter: latestQuote.townName,
-                  deliveryFee: latestQuote.fee,
-                  etaMinValue: latestQuote.etaMinValue,
-                  etaMaxValue: latestQuote.etaMaxValue,
-                  etaUnit: latestQuote.etaUnit,
-                  etaText: latestQuote.etaText,
-                },
-              });
-
-              if (!result.ok || !result.order) {
-                toast.error(result.message ?? "Unable to place order right now.");
+              if (isSubmittingCheckout) {
                 return;
               }
-              if (appliedCouponCode) {
-                incrementCouponUsage(appliedCouponCode);
-              }
 
-              clearCart();
-              toast.success(`Order #${result.order.orderNumber} placed successfully.`);
-              router.push("/orders");
+              setIsSubmittingCheckout(true);
+              try {
+                const response = await fetch("/api/checkout/create-order", {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({
+                    paymentMethod,
+                    couponCode: appliedCouponCode,
+                    items: detailedItems.map((item) => ({
+                      productId: item.productId,
+                      productSlug: item.product.slug,
+                      quantity: item.quantity,
+                      selectedShade: item.selectedShade,
+                    })),
+                    shipping: {
+                      fullName: address.fullName,
+                      phone: address.phone,
+                      email: address.email,
+                      countyId: address.countyId,
+                      county: address.county,
+                      townCenterId: address.townCenterId,
+                      townCenter: address.townCenter,
+                      streetAddress: address.streetAddress,
+                      buildingOrHouse: address.buildingOrHouse,
+                      landmark: address.landmark,
+                    },
+                  }),
+                });
+
+                const payload = (await response.json()) as {
+                  ok: boolean;
+                  recoverable?: boolean;
+                  orderId?: string;
+                  orderNumber?: string;
+                  paymentStatus?: string;
+                  customerMessage?: string;
+                  error?: string;
+                };
+
+                if (!response.ok || !payload.ok) {
+                  if (response.status === 401) {
+                    toast.error("Please sign in to complete checkout.");
+                    router.push("/auth/login");
+                    return;
+                  }
+
+                  if (payload.recoverable) {
+                    toast.warning(
+                      payload.error ??
+                        "Order saved, but payment initiation failed. Retry from Orders.",
+                    );
+                    clearCart();
+                    router.push("/orders");
+                    return;
+                  }
+                  toast.error(payload.error ?? "Unable to place order right now.");
+                  return;
+                }
+
+                clearCart();
+                toast.success(
+                  payload.customerMessage ??
+                    `Order #${payload.orderNumber ?? payload.orderId ?? ""} created. Complete M-Pesa prompt on your phone.`,
+                );
+                router.push("/orders");
+              } catch (error) {
+                toast.error(
+                  error instanceof Error
+                    ? error.message
+                    : "Unable to place order right now.",
+                );
+              } finally {
+                setIsSubmittingCheckout(false);
+              }
             }}
           />
           <section className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-soft)]">
             <div className="flex items-center gap-2">
               <CreditCard className="size-4 text-[var(--brand-700)]" />
-              <h2 className="text-lg font-semibold text-[var(--foreground)]">Payment Integration Placeholder</h2>
+              <h2 className="text-lg font-semibold text-[var(--foreground)]">Payment Processing</h2>
             </div>
             <p className="mt-2 text-sm text-[var(--foreground-muted)]">
-              Connect your preferred gateway (M-Pesa, card processor) in `lib/services` and secure it with server-side APIs.
+              Checkout is now server-persisted before payment initiation. If M-Pesa initiation fails, your order stays recoverable under Orders and Admin Pending Payments.
             </p>
           </section>
         </div>
