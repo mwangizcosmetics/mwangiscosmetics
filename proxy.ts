@@ -16,7 +16,8 @@ function hasSupabaseEnv() {
 
 function getLoginRedirect(request: NextRequest) {
   const redirectUrl = request.nextUrl.clone();
-  redirectUrl.pathname = "/auth/login";
+  const isAdminPath = request.nextUrl.pathname.startsWith("/admin");
+  redirectUrl.pathname = isAdminPath ? "/admin/access" : "/auth/login";
   const nextPath = `${request.nextUrl.pathname}${request.nextUrl.search}`;
   redirectUrl.searchParams.set("next", nextPath);
   return redirectUrl;
@@ -44,11 +45,12 @@ function requiresSuperAdmin(pathname: string) {
 
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+  const isAdminAccessPath = pathname.startsWith("/admin/access");
   const requiresAuth =
     pathname.startsWith("/account") ||
     pathname.startsWith("/orders") ||
     pathname.startsWith("/checkout");
-  const requiresAdmin = pathname.startsWith("/admin");
+  const requiresAdmin = pathname.startsWith("/admin") && !isAdminAccessPath;
   const requiresBeba = pathname.startsWith("/beba");
 
   if (!requiresAuth && !requiresAdmin && !requiresBeba) {
@@ -113,6 +115,16 @@ export async function proxy(request: NextRequest) {
     blocked.pathname = "/account";
     blocked.searchParams.set("denied", "inactive");
     return NextResponse.redirect(blocked);
+  }
+
+  if (isAdminAccessPath) {
+    if (hasPermission(role, "admin:access")) {
+      const adminUrl = request.nextUrl.clone();
+      adminUrl.pathname = "/admin";
+      adminUrl.search = "";
+      return NextResponse.redirect(adminUrl);
+    }
+    return response;
   }
 
   if (requiresAdmin) {

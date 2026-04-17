@@ -1,4 +1,5 @@
 import {
+  Bell,
   ClipboardList,
   Crown,
   Truck,
@@ -47,6 +48,7 @@ export const adminSidebarNav: AdminSidebarItem[] = [
   { label: "Refunds", href: "/admin/refunds", icon: Heart, requiredPermission: "admin:refunds_manage" },
   { label: "Categories", href: "/admin/categories", icon: LayoutGrid, requiredPermission: "admin:products_management" },
   { label: "Banners", href: "/admin/banners", icon: PackageSearch, requiredPermission: "admin:products_management" },
+  { label: "Announcement", href: "/admin/announcement", icon: Bell, requiredPermission: "admin:products_management" },
   { label: "Reviews", href: "/admin/reviews", icon: ClipboardList, requiredPermission: "admin:orders_read" },
   { label: "Pending Payments", href: "/admin/pending-payments", icon: Wallet, requiredPermission: "admin:financials" },
   { label: "Payment Logs", href: "/admin/payment-logs", icon: Wallet, requiredPermission: "admin:payment_logs" },

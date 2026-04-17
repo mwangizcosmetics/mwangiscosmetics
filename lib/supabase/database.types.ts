@@ -806,6 +806,28 @@ export interface Database {
         };
         Relationships: [];
       };
+      site_announcements: {
+        Row: {
+          id: string;
+          message: string;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          message: string;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          message?: string;
+          is_active?: boolean;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       service_counties: {
         Row: {
           id: string;

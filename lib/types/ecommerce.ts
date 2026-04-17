@@ -296,6 +296,14 @@ export interface Banner {
   updatedAt?: string;
 }
 
+export interface SiteAnnouncement {
+  id: string;
+  message: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface RefundRequest {
   id: string;
   orderId: string;

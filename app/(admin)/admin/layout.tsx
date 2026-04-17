@@ -7,7 +7,7 @@ import { requireAdminUser } from "@/lib/services/auth-server";
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const auth = await requireAdminUser();
   if (!auth.ok) {
-    redirect("/auth/login?next=/admin");
+    redirect("/admin/access?next=/admin");
   }
 
   return <AdminShell role={auth.profile.role}>{children}</AdminShell>;
